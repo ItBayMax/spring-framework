@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2015 the original author or authors.
+ * Copyright 2002-2019 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -38,7 +38,7 @@ import org.springframework.web.socket.messaging.SubProtocolWebSocketHandler;
  * {@code @EnableWebSocketMessageBroker} for Java config and
  * {@code <websocket:message-broker>} for XML.
  *
- * <p>By default aggregated information is logged every 15 minutes at INFO level.
+ * <p>By default aggregated information is logged every 30 minutes at INFO level.
  * The frequency of logging can be changed via {@link #setLoggingPeriod(long)}.
  *
  * <p>This class is declared as a Spring bean by the above configuration with the
@@ -106,11 +106,11 @@ public class WebSocketMessageBrokerStats {
 	}
 
 	private ScheduledFuture<?> initLoggingTask(long initialDelay) {
-		if (logger.isInfoEnabled() && this.loggingPeriod > 0) {
+		if (this.loggingPeriod > 0 && logger.isInfoEnabled()) {
 			return this.sockJsTaskScheduler.scheduleAtFixedRate(new Runnable() {
 				@Override
 				public void run() {
-					logger.info(WebSocketMessageBrokerStats.this.toString());
+					logger.info(WebSocketMessageBrokerStats.this);
 				}
 			}, initialDelay, this.loggingPeriod, TimeUnit.MILLISECONDS);
 		}
@@ -189,7 +189,7 @@ public class WebSocketMessageBrokerStats {
 				", stompSubProtocol[" + getStompSubProtocolStatsInfo() + "]" +
 				", stompBrokerRelay[" + getStompBrokerRelayStatsInfo() + "]" +
 				", inboundChannel[" + getClientInboundExecutorStatsInfo() + "]" +
-				", outboundChannel" + getClientOutboundExecutorStatsInfo() + "]" +
+				", outboundChannel[" + getClientOutboundExecutorStatsInfo() + "]" +
 				", sockJsScheduler[" + getSockJsTaskSchedulerStatsInfo() + "]";
 	}
 

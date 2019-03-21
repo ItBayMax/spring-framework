@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2017 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -116,6 +116,28 @@ import org.springframework.web.util.WebUtils;
 public class RequestMappingHandlerAdapter extends AbstractHandlerMethodAdapter
 		implements BeanFactoryAware, InitializingBean {
 
+	/**
+	 * MethodFilter that matches {@link InitBinder @InitBinder} methods.
+	 */
+	public static final MethodFilter INIT_BINDER_METHODS = new MethodFilter() {
+		@Override
+		public boolean matches(Method method) {
+			return (AnnotationUtils.findAnnotation(method, InitBinder.class) != null);
+		}
+	};
+
+	/**
+	 * MethodFilter that matches {@link ModelAttribute @ModelAttribute} methods.
+	 */
+	public static final MethodFilter MODEL_ATTRIBUTE_METHODS = new MethodFilter() {
+		@Override
+		public boolean matches(Method method) {
+			return (AnnotationUtils.findAnnotation(method, RequestMapping.class) == null &&
+					AnnotationUtils.findAnnotation(method, ModelAttribute.class) != null);
+		}
+	};
+
+
 	private List<HandlerMethodArgumentResolver> customArgumentResolvers;
 
 	private HandlerMethodArgumentResolverComposite argumentResolvers;
@@ -218,7 +240,7 @@ public class RequestMappingHandlerAdapter extends AbstractHandlerMethodAdapter
 	 * not initialized yet via {@link #afterPropertiesSet()}.
 	 */
 	public List<HandlerMethodArgumentResolver> getArgumentResolvers() {
-		return (this.argumentResolvers != null) ? this.argumentResolvers.getResolvers() : null;
+		return (this.argumentResolvers != null ? this.argumentResolvers.getResolvers() : null);
 	}
 
 	/**
@@ -239,7 +261,7 @@ public class RequestMappingHandlerAdapter extends AbstractHandlerMethodAdapter
 	 * {@code null} if not initialized yet via {@link #afterPropertiesSet()}.
 	 */
 	public List<HandlerMethodArgumentResolver> getInitBinderArgumentResolvers() {
-		return (this.initBinderArgumentResolvers != null) ? this.initBinderArgumentResolvers.getResolvers() : null;
+		return (this.initBinderArgumentResolvers != null ? this.initBinderArgumentResolvers.getResolvers() : null);
 	}
 
 	/**
@@ -277,7 +299,7 @@ public class RequestMappingHandlerAdapter extends AbstractHandlerMethodAdapter
 	 * initialized yet via {@link #afterPropertiesSet()}.
 	 */
 	public List<HandlerMethodReturnValueHandler> getReturnValueHandlers() {
-		return this.returnValueHandlers.getHandlers();
+		return (this.returnValueHandlers != null ? this.returnValueHandlers.getHandlers() : null);
 	}
 
 	/**
@@ -302,7 +324,7 @@ public class RequestMappingHandlerAdapter extends AbstractHandlerMethodAdapter
 	 * Return the configured {@link ModelAndViewResolver}s, or {@code null}.
 	 */
 	public List<ModelAndViewResolver> getModelAndViewResolvers() {
-		return modelAndViewResolvers;
+		return this.modelAndViewResolvers;
 	}
 
 	/**
@@ -944,27 +966,5 @@ public class RequestMappingHandlerAdapter extends AbstractHandlerMethodAdapter
 		}
 		return mav;
 	}
-
-
-	/**
-	 * MethodFilter that matches {@link InitBinder @InitBinder} methods.
-	 */
-	public static final MethodFilter INIT_BINDER_METHODS = new MethodFilter() {
-		@Override
-		public boolean matches(Method method) {
-			return AnnotationUtils.findAnnotation(method, InitBinder.class) != null;
-		}
-	};
-
-	/**
-	 * MethodFilter that matches {@link ModelAttribute @ModelAttribute} methods.
-	 */
-	public static final MethodFilter MODEL_ATTRIBUTE_METHODS = new MethodFilter() {
-		@Override
-		public boolean matches(Method method) {
-			return ((AnnotationUtils.findAnnotation(method, RequestMapping.class) == null) &&
-					(AnnotationUtils.findAnnotation(method, ModelAttribute.class) != null));
-		}
-	};
 
 }

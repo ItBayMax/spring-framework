@@ -1,5 +1,5 @@
 /*
- * Copyright 2002-2016 the original author or authors.
+ * Copyright 2002-2018 the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -23,7 +23,7 @@ import org.springframework.util.ObjectUtils;
 import org.springframework.util.StringUtils;
 
 /**
- * Default implementation of the {@link MessageSourceResolvable} interface.
+ * Spring's default implementation of the {@link MessageSourceResolvable} interface.
  * Offers an easy way to store all the necessary values needed to resolve
  * a message via a {@link org.springframework.context.MessageSource}.
  *
@@ -96,17 +96,17 @@ public class DefaultMessageSourceResolvable implements MessageSourceResolvable, 
 	}
 
 
-	@Override
-	public String[] getCodes() {
-		return this.codes;
-	}
-
 	/**
 	 * Return the default code of this resolvable, that is,
 	 * the last one in the codes array.
 	 */
 	public String getCode() {
 		return (this.codes != null && this.codes.length > 0 ? this.codes[this.codes.length - 1] : null);
+	}
+
+	@Override
+	public String[] getCodes() {
+		return this.codes;
 	}
 
 	@Override
@@ -133,8 +133,8 @@ public class DefaultMessageSourceResolvable implements MessageSourceResolvable, 
 	}
 
 	/**
-	 * Default implementation exposes the attributes of this MessageSourceResolvable.
-	 * To be overridden in more specific subclasses, potentially including the
+	 * The default implementation exposes the attributes of this MessageSourceResolvable.
+	 * <p>To be overridden in more specific subclasses, potentially including the
 	 * resolvable content through {@code resolvableToString()}.
 	 * @see #resolvableToString()
 	 */
