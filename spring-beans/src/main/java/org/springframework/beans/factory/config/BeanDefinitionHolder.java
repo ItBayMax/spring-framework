@@ -113,6 +113,7 @@ public class BeanDefinitionHolder implements BeanMetadataElement {
 	 * @see BeanDefinition#getSource()
 	 */
 	@Override
+	@Nullable
 	public Object getSource() {
 		return this.beanDefinition.getSource();
 	}
@@ -149,9 +150,7 @@ public class BeanDefinitionHolder implements BeanMetadataElement {
 	 * @see #getBeanDefinition()
 	 */
 	public String getLongDescription() {
-		StringBuilder sb = new StringBuilder(getShortDescription());
-		sb.append(": ").append(this.beanDefinition);
-		return sb.toString();
+		return getShortDescription() + ": " + this.beanDefinition;
 	}
 
 	/**
