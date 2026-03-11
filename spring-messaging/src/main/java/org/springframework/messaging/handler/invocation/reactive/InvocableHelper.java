@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -25,11 +25,11 @@ import java.util.function.Function;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.jspecify.annotations.Nullable;
 import reactor.core.publisher.Mono;
 
 import org.springframework.core.MethodParameter;
 import org.springframework.core.ReactiveAdapterRegistry;
-import org.springframework.lang.Nullable;
 import org.springframework.messaging.Message;
 import org.springframework.messaging.handler.HandlerMethod;
 import org.springframework.messaging.handler.MessagingAdviceBean;
@@ -46,7 +46,7 @@ import org.springframework.util.Assert;
  */
 class InvocableHelper {
 
-	private static Log logger = LogFactory.getLog(InvocableHelper.class);
+	private static final Log logger = LogFactory.getLog(InvocableHelper.class);
 
 
 	private final HandlerMethodArgumentResolverComposite argumentResolvers =
@@ -81,6 +81,14 @@ class InvocableHelper {
 	}
 
 	/**
+	 * Return the configured resolvers.
+	 * @since 5.2.2
+	 */
+	public HandlerMethodArgumentResolverComposite getArgumentResolvers() {
+		return this.argumentResolvers;
+	}
+
+	/**
 	 * Add the return value handlers to use for message handling and exception
 	 * handling methods.
 	 */
@@ -106,7 +114,7 @@ class InvocableHelper {
 	}
 
 	/**
-	 * Method to populate the MessagingAdviceBean cache (e.g. to support "global"
+	 * Method to populate the MessagingAdviceBean cache (for example, to support "global"
 	 * {@code @MessageExceptionHandler}).
 	 */
 	public void registerExceptionHandlerAdvice(
@@ -138,8 +146,7 @@ class InvocableHelper {
 	 * @param ex the exception raised or signaled
 	 * @return a method to handle the exception, or {@code null}
 	 */
-	@Nullable
-	public InvocableHandlerMethod initExceptionHandlerMethod(HandlerMethod handlerMethod, Throwable ex) {
+	public @Nullable InvocableHandlerMethod initExceptionHandlerMethod(HandlerMethod handlerMethod, Throwable ex) {
 		if (logger.isDebugEnabled()) {
 			logger.debug("Searching for methods to handle " + ex.getClass().getSimpleName());
 		}
@@ -155,9 +162,10 @@ class InvocableHelper {
 			exceptionHandlerMethod = new InvocableHandlerMethod(handlerMethod.getBean(), method);
 		}
 		else {
-			for (MessagingAdviceBean advice : this.exceptionHandlerAdviceCache.keySet()) {
+			for (Map.Entry<MessagingAdviceBean, AbstractExceptionHandlerMethodResolver> entry : this.exceptionHandlerAdviceCache.entrySet()) {
+				MessagingAdviceBean advice = entry.getKey();
 				if (advice.isApplicableToBeanType(beanType)) {
-					resolver = this.exceptionHandlerAdviceCache.get(advice);
+					resolver = entry.getValue();
 					method = resolver.resolveMethod(ex);
 					if (method != null) {
 						exceptionHandlerMethod = new InvocableHandlerMethod(advice.resolveBean(), method);

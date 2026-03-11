@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,7 +16,12 @@
 
 package org.springframework.web.servlet.function;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
 import java.util.Optional;
+import java.util.function.Consumer;
+
+import org.springframework.util.Assert;
 
 /**
  * Represents a function that routes to a {@linkplain HandlerFunction handler function}.
@@ -36,6 +41,9 @@ public interface RouterFunction<T extends ServerResponse> {
 	 * or an empty {@code Optional} if there is no match
 	 */
 	Optional<HandlerFunction<T>> route(ServerRequest request);
+
+
+	// Default methods for composition and filtering
 
 	/**
 	 * Return a composed routing function that first invokes this function,
@@ -94,8 +102,42 @@ public interface RouterFunction<T extends ServerResponse> {
 	}
 
 	/**
-	 * Filter all {@linkplain HandlerFunction handler functions} routed by this function with the given
-	 * {@linkplain HandlerFilterFunction filter function}.
+	 * Return a new routing function with the given attribute.
+	 * @param name the attribute name
+	 * @param value the attribute value
+     * @return a function that has the specified attributes
+     * @since 5.3
+	 */
+	default RouterFunction<T> withAttribute(String name, Object value) {
+		Assert.hasLength(name, "Name must not be empty");
+		Assert.notNull(value, "Value must not be null");
+
+		Map<String, Object> attributes = new LinkedHashMap<>();
+		attributes.put(name, value);
+		return new RouterFunctions.AttributesRouterFunction<>(this, attributes);
+	}
+
+	/**
+	 * Return a new routing function with attributes manipulated with the given consumer.
+	 * <p>The map provided to the consumer is "live", so that the consumer can be used
+	 * to {@linkplain Map#put(Object, Object) overwrite} existing attributes,
+	 * {@linkplain Map#remove(Object) remove} attributes, or use any of the other
+	 * {@link Map} methods.
+	 * @param attributesConsumer a function that consumes the attributes map
+	 * @return this builder
+	 * @since 5.3
+	 */
+	default RouterFunction<T> withAttributes(Consumer<Map<String, Object>> attributesConsumer) {
+		Assert.notNull(attributesConsumer, "AttributesConsumer must not be null");
+
+		Map<String, Object> attributes = new LinkedHashMap<>();
+		attributesConsumer.accept(attributes);
+		return new RouterFunctions.AttributesRouterFunction<>(this, attributes);
+	}
+
+	/**
+	 * Filter all {@linkplain HandlerFunction handler functions} routed by this function
+	 * with the given {@linkplain HandlerFilterFunction filter function}.
 	 * @param <S> the filter return type
 	 * @param filterFunction the filter to apply
 	 * @return the filtered routing function
@@ -105,7 +147,8 @@ public interface RouterFunction<T extends ServerResponse> {
 	}
 
 	/**
-	 * Accept the given visitor. Default implementation calls
+	 * Accept the given visitor.
+	 * <p>The default implementation calls
 	 * {@link RouterFunctions.Visitor#unknown(RouterFunction)}; composed {@code RouterFunction}
 	 * implementations are expected to call {@code accept} for all components that make up this
 	 * router function.
@@ -114,4 +157,5 @@ public interface RouterFunction<T extends ServerResponse> {
 	default void accept(RouterFunctions.Visitor visitor) {
 		visitor.unknown(this);
 	}
+
 }

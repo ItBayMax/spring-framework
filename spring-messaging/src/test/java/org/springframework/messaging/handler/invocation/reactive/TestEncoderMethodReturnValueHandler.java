@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 package org.springframework.messaging.handler.invocation.reactive;
 
 import java.util.List;
@@ -24,10 +25,9 @@ import org.springframework.core.MethodParameter;
 import org.springframework.core.ReactiveAdapterRegistry;
 import org.springframework.core.codec.Encoder;
 import org.springframework.core.io.buffer.DataBuffer;
-import org.springframework.core.io.buffer.support.DataBufferTestUtils;
 import org.springframework.messaging.Message;
 
-import static java.nio.charset.StandardCharsets.*;
+import static java.nio.charset.StandardCharsets.UTF_8;
 
 /**
  * Implementation of {@link AbstractEncoderMethodReturnValueHandler} for tests.
@@ -50,7 +50,7 @@ public class TestEncoderMethodReturnValueHandler extends AbstractEncoderMethodRe
 	}
 
 	public Flux<String> getContentAsStrings() {
-		return this.encodedContent.map(buffer -> DataBufferTestUtils.dumpString(buffer, UTF_8));
+		return this.encodedContent.map(buffer -> buffer.toString(UTF_8));
 	}
 
 	@Override
@@ -66,4 +66,5 @@ public class TestEncoderMethodReturnValueHandler extends AbstractEncoderMethodRe
 		this.encodedContent = Flux.empty();
 		return Mono.empty();
 	}
+
 }

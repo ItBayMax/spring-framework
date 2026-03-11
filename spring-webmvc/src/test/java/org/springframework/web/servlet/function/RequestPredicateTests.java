@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,59 +18,60 @@ package org.springframework.web.servlet.function;
 
 import java.util.Collections;
 
-import org.junit.Before;
-import org.junit.Test;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
-import org.springframework.mock.web.test.MockHttpServletRequest;
+import org.springframework.web.servlet.handler.PathPatternsTestUtils;
+import org.springframework.web.testfixture.servlet.MockHttpServletRequest;
 
-import static org.junit.Assert.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * @author Arjen Poutsma
  */
-public class RequestPredicateTests {
+class RequestPredicateTests {
 
 	private ServerRequest request;
 
-	@Before
-	public void createRequest() {
-		this.request = new DefaultServerRequest(new MockHttpServletRequest(),
-				Collections.emptyList());
+	@BeforeEach
+	void createRequest() {
+		MockHttpServletRequest servletRequest = PathPatternsTestUtils.initRequest("GET", "/", true);
+		this.request = new DefaultServerRequest(servletRequest, Collections.emptyList());
 	}
 
 	@Test
-	public void and() {
+	void and() {
 		RequestPredicate predicate1 = request -> true;
 		RequestPredicate predicate2 = request -> true;
 		RequestPredicate predicate3 = request -> false;
 
-		assertTrue(predicate1.and(predicate2).test(request));
-		assertTrue(predicate2.and(predicate1).test(request));
-		assertFalse(predicate1.and(predicate3).test(request));
+		assertThat(predicate1.and(predicate2).test(request)).isTrue();
+		assertThat(predicate2.and(predicate1).test(request)).isTrue();
+		assertThat(predicate1.and(predicate3).test(request)).isFalse();
 	}
 
 	@Test
-	public void negate() {
+	void negate() {
 		RequestPredicate predicate = request -> false;
 		RequestPredicate negated = predicate.negate();
 
-		assertTrue(negated.test(request));
+		assertThat(negated.test(request)).isTrue();
 
 		predicate = request -> true;
 		negated = predicate.negate();
 
-		assertFalse(negated.test(request));
+		assertThat(negated.test(request)).isFalse();
 	}
 
 	@Test
-	public void or() {
+	void or() {
 		RequestPredicate predicate1 = request -> true;
 		RequestPredicate predicate2 = request -> false;
 		RequestPredicate predicate3 = request -> false;
 
-		assertTrue(predicate1.or(predicate2).test(request));
-		assertTrue(predicate2.or(predicate1).test(request));
-		assertFalse(predicate2.or(predicate3).test(request));
+		assertThat(predicate1.or(predicate2).test(request)).isTrue();
+		assertThat(predicate2.or(predicate1).test(request)).isTrue();
+		assertThat(predicate2.or(predicate3).test(request)).isFalse();
 	}
 
 }

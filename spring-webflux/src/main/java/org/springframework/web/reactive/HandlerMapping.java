@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2016 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,6 +18,7 @@ package org.springframework.web.reactive;
 
 import reactor.core.publisher.Mono;
 
+import org.springframework.web.accept.ApiVersionHolder;
 import org.springframework.web.server.ServerWebExchange;
 
 /**
@@ -83,9 +84,22 @@ public interface HandlerMapping {
 	 */
 	String PRODUCIBLE_MEDIA_TYPES_ATTRIBUTE = HandlerMapping.class.getName() + ".producibleMediaTypes";
 
+	/**
+	 * Name of the {@link ServerWebExchange#getAttributes() attribute} that
+	 * contains an {@link ApiVersionHolder} with the result of obtaining and
+	 * parsing the API version of the request.
+	 * @since 7.0
+	 */
+	String API_VERSION_ATTRIBUTE = HandlerMapping.class.getName() + ".apiVersion";
+
 
 	/**
 	 * Return a handler for this request.
+	 * <p>Before returning a handler, an implementing method should check for
+	 * CORS configuration associated with the handler, apply validation checks
+	 * based on it, and update the response accordingly. For pre-flight requests,
+	 * the same should be done based on the handler matching to the expected
+	 * actual request.
 	 * @param exchange current server exchange
 	 * @return a {@link Mono} that emits one value or none in case the request
 	 * cannot be resolved to a handler

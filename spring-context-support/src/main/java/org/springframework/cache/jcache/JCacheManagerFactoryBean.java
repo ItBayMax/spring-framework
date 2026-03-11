@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,21 +18,21 @@ package org.springframework.cache.jcache;
 
 import java.net.URI;
 import java.util.Properties;
+
 import javax.cache.CacheManager;
 import javax.cache.Caching;
+
+import org.jspecify.annotations.Nullable;
 
 import org.springframework.beans.factory.BeanClassLoaderAware;
 import org.springframework.beans.factory.DisposableBean;
 import org.springframework.beans.factory.FactoryBean;
 import org.springframework.beans.factory.InitializingBean;
-import org.springframework.lang.Nullable;
 
 /**
  * {@link FactoryBean} for a JCache {@link CacheManager javax.cache.CacheManager},
  * obtaining a pre-defined {@code CacheManager} by name through the standard
  * JCache {@link Caching javax.cache.Caching} class.
- *
- * <p>Note: This class has been updated for JCache 1.0, as of Spring 4.0.
  *
  * @author Juergen Hoeller
  * @since 3.2
@@ -42,17 +42,13 @@ import org.springframework.lang.Nullable;
 public class JCacheManagerFactoryBean
 		implements FactoryBean<CacheManager>, BeanClassLoaderAware, InitializingBean, DisposableBean {
 
-	@Nullable
-	private URI cacheManagerUri;
+	private @Nullable URI cacheManagerUri;
 
-	@Nullable
-	private Properties cacheManagerProperties;
+	private @Nullable Properties cacheManagerProperties;
 
-	@Nullable
-	private ClassLoader beanClassLoader;
+	private @Nullable ClassLoader beanClassLoader;
 
-	@Nullable
-	private CacheManager cacheManager;
+	private @Nullable CacheManager cacheManager;
 
 
 	/**
@@ -85,8 +81,7 @@ public class JCacheManagerFactoryBean
 
 
 	@Override
-	@Nullable
-	public CacheManager getObject() {
+	public @Nullable CacheManager getObject() {
 		return this.cacheManager;
 	}
 

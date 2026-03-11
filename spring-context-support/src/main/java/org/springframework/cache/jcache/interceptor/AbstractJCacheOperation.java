@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -24,10 +24,13 @@ import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
+
 import javax.cache.annotation.CacheInvocationParameter;
 import javax.cache.annotation.CacheKey;
 import javax.cache.annotation.CacheMethodDetails;
 import javax.cache.annotation.CacheValue;
+
+import org.jspecify.annotations.Nullable;
 
 import org.springframework.cache.interceptor.CacheResolver;
 import org.springframework.util.Assert;
@@ -104,7 +107,7 @@ abstract class AbstractJCacheOperation<A extends Annotation> implements JCacheOp
 	}
 
 	@Override
-	public CacheInvocationParameter[] getAllParameters(Object... values) {
+	public CacheInvocationParameter[] getAllParameters(@Nullable Object... values) {
 		if (this.allParameterDetails.size() != values.length) {
 			throw new IllegalStateException("Values mismatch, operation has " +
 					this.allParameterDetails.size() + " parameter(s) but got " + values.length + " value(s)");
@@ -131,13 +134,13 @@ abstract class AbstractJCacheOperation<A extends Annotation> implements JCacheOp
 	protected ExceptionTypeFilter createExceptionTypeFilter(
 			Class<? extends Throwable>[] includes, Class<? extends Throwable>[] excludes) {
 
-		return new ExceptionTypeFilter(Arrays.asList(includes), Arrays.asList(excludes), true);
+		return new ExceptionTypeFilter(Arrays.asList(includes), Arrays.asList(excludes));
 	}
 
 
 	@Override
 	public String toString() {
-		return getOperationDescription().append("]").toString();
+		return getOperationDescription().append(']').toString();
 	}
 
 	/**
@@ -147,7 +150,7 @@ abstract class AbstractJCacheOperation<A extends Annotation> implements JCacheOp
 	protected StringBuilder getOperationDescription() {
 		StringBuilder result = new StringBuilder();
 		result.append(getClass().getSimpleName());
-		result.append("[");
+		result.append('[');
 		result.append(this.methodDetails);
 		return result;
 	}
@@ -199,7 +202,7 @@ abstract class AbstractJCacheOperation<A extends Annotation> implements JCacheOp
 			return this.isValue;
 		}
 
-		public CacheInvocationParameter toCacheInvocationParameter(Object value) {
+		public CacheInvocationParameter toCacheInvocationParameter(@Nullable Object value) {
 			return new CacheInvocationParameterImpl(this, value);
 		}
 	}
@@ -212,9 +215,9 @@ abstract class AbstractJCacheOperation<A extends Annotation> implements JCacheOp
 
 		private final CacheParameterDetail detail;
 
-		private final Object value;
+		private final @Nullable Object value;
 
-		public CacheInvocationParameterImpl(CacheParameterDetail detail, Object value) {
+		public CacheInvocationParameterImpl(CacheParameterDetail detail, @Nullable Object value) {
 			this.detail = detail;
 			this.value = value;
 		}
@@ -225,7 +228,7 @@ abstract class AbstractJCacheOperation<A extends Annotation> implements JCacheOp
 		}
 
 		@Override
-		public Object getValue() {
+		public @Nullable Object getValue() {
 			return this.value;
 		}
 

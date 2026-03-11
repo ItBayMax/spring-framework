@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,7 +16,7 @@
 
 package org.springframework.beans.factory.annotation;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.beans.factory.config.BeanDefinitionHolder;
 import org.springframework.beans.factory.config.DependencyDescriptor;
@@ -24,20 +24,20 @@ import org.springframework.beans.factory.support.AutowireCandidateResolver;
 import org.springframework.beans.factory.support.DefaultListableBeanFactory;
 import org.springframework.beans.factory.xml.XmlBeanDefinitionReader;
 
-import static org.junit.Assert.*;
-import static org.springframework.tests.TestResourceUtils.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.core.testfixture.io.ResourceTestUtils.qualifiedResource;
 
 /**
- * Unit tests for {@link CustomAutowireConfigurer}.
+ * Tests for {@link CustomAutowireConfigurer}.
  *
  * @author Mark Fisher
  * @author Juergen Hoeller
  * @author Chris Beams
  */
-public class CustomAutowireConfigurerTests {
+class CustomAutowireConfigurerTests {
 
 	@Test
-	public void testCustomResolver() {
+	void testCustomResolver() {
 		DefaultListableBeanFactory bf = new DefaultListableBeanFactory();
 		new XmlBeanDefinitionReader(bf).loadBeanDefinitions(
 				qualifiedResource(CustomAutowireConfigurerTests.class, "context.xml"));
@@ -47,7 +47,7 @@ public class CustomAutowireConfigurerTests {
 		bf.setAutowireCandidateResolver(customResolver);
 		cac.postProcessBeanFactory(bf);
 		TestBean testBean = (TestBean) bf.getBean("testBean");
-		assertEquals("#1!", testBean.getName());
+		assertThat(testBean.getName()).isEqualTo("#1!");
 	}
 
 

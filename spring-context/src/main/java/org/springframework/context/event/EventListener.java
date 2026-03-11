@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,7 +21,9 @@ import java.lang.annotation.ElementType;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
+import java.util.function.Predicate;
 
+import org.springframework.aot.hint.annotation.Reflective;
 import org.springframework.context.ApplicationEvent;
 import org.springframework.core.annotation.AliasFor;
 
@@ -83,10 +85,12 @@ import org.springframework.core.annotation.AliasFor;
  * @author Sam Brannen
  * @since 4.2
  * @see EventListenerMethodProcessor
+ * @see org.springframework.transaction.event.TransactionalEventListener
  */
 @Target({ElementType.METHOD, ElementType.ANNOTATION_TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
+@Reflective
 public @interface EventListener {
 
 	/**
@@ -97,10 +101,9 @@ public @interface EventListener {
 
 	/**
 	 * The event classes that this listener handles.
-	 * <p>If this attribute is specified with a single value, the
-	 * annotated method may optionally accept a single parameter.
-	 * However, if this attribute is specified with multiple values,
-	 * the annotated method must <em>not</em> declare any parameters.
+	 * <p>The annotated method may optionally accept a single parameter
+	 * of the given event class, or of a common base class or interface
+	 * for all given event classes.
 	 */
 	@AliasFor("value")
 	Class<?>[] classes() default {};
@@ -127,5 +130,22 @@ public @interface EventListener {
 	 * </ul>
 	 */
 	String condition() default "";
+
+	/**
+	 * Whether the event should be handled by default, without any special
+	 * pre-conditions such as an active transaction. Declared here for overriding
+	 * in composed annotations such as {@code TransactionalEventListener}.
+	 * @since 6.2
+	 */
+	boolean defaultExecution() default true;
+
+	/**
+	 * An optional identifier for the listener, defaulting to the fully-qualified
+	 * signature of the declaring method (for example, "mypackage.MyClass.myMethod()").
+	 * @since 5.3.5
+	 * @see SmartApplicationListener#getListenerId()
+	 * @see ApplicationEventMulticaster#removeApplicationListeners(Predicate)
+	 */
+	String id() default "";
 
 }

@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,8 +16,6 @@
 
 package org.springframework.util;
 
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
@@ -27,16 +25,19 @@ import java.io.StringWriter;
 import java.io.Writer;
 import java.nio.file.Files;
 
-import org.springframework.lang.Nullable;
+import org.jspecify.annotations.Nullable;
 
 /**
- * Simple utility methods for file and stream copying. All copy methods use a block size
- * of 4096 bytes, and close all affected streams when done. A variation of the copy
- * methods from this class that leave streams open can be found in {@link StreamUtils}.
+ * Simple utility methods for file and stream copying.
+ *
+ * <p>All copy methods use a block size of {@value #BUFFER_SIZE} bytes and
+ * close all affected streams when done. A variation of the copy methods from
+ * this class that leave streams open can be found in {@link StreamUtils}.
  *
  * <p>Mainly for use within the framework, but also useful for application code.
  *
  * @author Juergen Hoeller
+ * @author Hyunjin Choi
  * @since 06.10.2003
  * @see StreamUtils
  * @see FileSystemUtils
@@ -75,7 +76,7 @@ public abstract class FileCopyUtils {
 	public static void copy(byte[] in, File out) throws IOException {
 		Assert.notNull(in, "No input byte array specified");
 		Assert.notNull(out, "No output File specified");
-		copy(new ByteArrayInputStream(in), Files.newOutputStream(out.toPath()));
+		Files.write(out.toPath(), in);
 	}
 
 	/**
@@ -86,7 +87,7 @@ public abstract class FileCopyUtils {
 	 */
 	public static byte[] copyToByteArray(File in) throws IOException {
 		Assert.notNull(in, "No input File specified");
-		return copyToByteArray(Files.newInputStream(in.toPath()));
+		return Files.readAllBytes(in.toPath());
 	}
 
 
@@ -106,20 +107,10 @@ public abstract class FileCopyUtils {
 		Assert.notNull(in, "No InputStream specified");
 		Assert.notNull(out, "No OutputStream specified");
 
-		try {
-			return StreamUtils.copy(in, out);
-		}
-		finally {
-			try {
-				in.close();
-			}
-			catch (IOException ex) {
-			}
-			try {
-				out.close();
-			}
-			catch (IOException ex) {
-			}
+		try (in; out) {
+			int count = (int) in.transferTo(out);
+			out.flush();
+			return count;
 		}
 	}
 
@@ -134,15 +125,8 @@ public abstract class FileCopyUtils {
 		Assert.notNull(in, "No input byte array specified");
 		Assert.notNull(out, "No OutputStream specified");
 
-		try {
+		try (out) {
 			out.write(in);
-		}
-		finally {
-			try {
-				out.close();
-			}
-			catch (IOException ex) {
-			}
 		}
 	}
 
@@ -158,9 +142,9 @@ public abstract class FileCopyUtils {
 			return new byte[0];
 		}
 
-		ByteArrayOutputStream out = new ByteArrayOutputStream(BUFFER_SIZE);
-		copy(in, out);
-		return out.toByteArray();
+		try (in) {
+			return in.readAllBytes();
+		}
 	}
 
 
@@ -180,33 +164,15 @@ public abstract class FileCopyUtils {
 		Assert.notNull(in, "No Reader specified");
 		Assert.notNull(out, "No Writer specified");
 
-		try {
-			int byteCount = 0;
-			char[] buffer = new char[BUFFER_SIZE];
-			int bytesRead = -1;
-			while ((bytesRead = in.read(buffer)) != -1) {
-				out.write(buffer, 0, bytesRead);
-				byteCount += bytesRead;
-			}
+		try (in; out) {
+			int charCount = (int) in.transferTo(out);
 			out.flush();
-			return byteCount;
-		}
-		finally {
-			try {
-				in.close();
-			}
-			catch (IOException ex) {
-			}
-			try {
-				out.close();
-			}
-			catch (IOException ex) {
-			}
+			return charCount;
 		}
 	}
 
 	/**
-	 * Copy the contents of the given String to the given output Writer.
+	 * Copy the contents of the given String to the given Writer.
 	 * Closes the writer when done.
 	 * @param in the String to copy from
 	 * @param out the Writer to copy to
@@ -216,15 +182,8 @@ public abstract class FileCopyUtils {
 		Assert.notNull(in, "No input String specified");
 		Assert.notNull(out, "No Writer specified");
 
-		try {
+		try (out) {
 			out.write(in);
-		}
-		finally {
-			try {
-				out.close();
-			}
-			catch (IOException ex) {
-			}
 		}
 	}
 
@@ -240,7 +199,7 @@ public abstract class FileCopyUtils {
 			return "";
 		}
 
-		StringWriter out = new StringWriter();
+		StringWriter out = new StringWriter(BUFFER_SIZE);
 		copy(in, out);
 		return out.toString();
 	}

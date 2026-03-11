@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,13 +21,14 @@ import java.time.Instant;
 import java.time.ZonedDateTime;
 import java.util.Set;
 import java.util.function.Consumer;
-import javax.servlet.http.Cookie;
+
+import jakarta.servlet.http.Cookie;
 
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
-import org.springframework.http.HttpStatus;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.http.MediaType;
 import org.springframework.util.MultiValueMap;
 
@@ -51,7 +52,7 @@ public interface EntityResponse<T> extends ServerResponse {
 	/**
 	 * Create a builder with the given object.
 	 * @param t the object that represents the body of the response
-	 * @param <T> the type of element contained in the publisher
+	 * @param <T> the type of element contained in the entity
 	 * @return the created builder
 	 */
 	static <T> Builder<T> fromObject(T t) {
@@ -62,7 +63,7 @@ public interface EntityResponse<T> extends ServerResponse {
 	 * Create a builder with the given object and type reference.
 	 * @param t the object that represents the body of the response
 	 * @param entityType the type of the entity, used to capture the generic type
-	 * @param <T> the type of element contained in the publisher
+	 * @param <T> the type of element contained in the entity
 	 * @return the created builder
 	 */
 	static <T> Builder<T> fromObject(T t, ParameterizedTypeReference<T> entityType) {
@@ -86,19 +87,22 @@ public interface EntityResponse<T> extends ServerResponse {
 		Builder<T> header(String headerName, String... headerValues);
 
 		/**
-		 * Copy the given headers into the entity's headers map.
-		 * @param headers the existing HttpHeaders to copy from
+		 * Manipulate this response's headers with the given consumer. The
+		 * headers provided to the consumer are "live", so that the consumer can be used to
+		 * {@linkplain HttpHeaders#set(String, String) overwrite} existing header values,
+		 * {@linkplain HttpHeaders#remove(String) remove} values, or use any of the other
+		 * {@link HttpHeaders} methods.
+		 * @param headersConsumer a function that consumes the {@code HttpHeaders}
 		 * @return this builder
-		 * @see HttpHeaders#add(String, String)
 		 */
-		Builder<T> headers(HttpHeaders headers);
+		Builder<T> headers(Consumer<HttpHeaders> headersConsumer);
 
 		/**
 		 * Set the HTTP status.
 		 * @param status the response status
 		 * @return this builder
 		 */
-		Builder<T> status(HttpStatus status);
+		Builder<T> status(HttpStatusCode status);
 
 		/**
 		 * Set the HTTP status.
@@ -193,7 +197,7 @@ public interface EntityResponse<T> extends ServerResponse {
 		Builder<T> cacheControl(CacheControl cacheControl);
 
 		/**
-		 * Configure one or more request header names (e.g. "Accept-Language") to
+		 * Configure one or more request header names (for example, "Accept-Language") to
 		 * add to the "Vary" response header to inform clients that the response is
 		 * subject to content negotiation and variances based on the value of the
 		 * given request headers. The configured request header names are added only

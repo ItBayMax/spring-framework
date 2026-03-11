@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,14 +16,15 @@
 
 package org.springframework.messaging.simp;
 
-import org.springframework.lang.Nullable;
+import org.jspecify.annotations.Nullable;
+
 import org.springframework.messaging.Message;
 import org.springframework.messaging.handler.CompositeMessageCondition;
 import org.springframework.messaging.handler.DestinationPatternsMessageCondition;
 import org.springframework.messaging.handler.MessageCondition;
 
 /**
- * {@link MessageCondition} for SImple Messaging Protocols. Encapsulates the following
+ * {@link MessageCondition} for Simple Messaging Protocols. Encapsulates the following
  * request mapping conditions:
  * <ol>
  * <li>{@link SimpMessageTypeMessageCondition}
@@ -64,8 +65,7 @@ public class SimpMessageMappingInfo implements MessageCondition<SimpMessageMappi
 	}
 
 	@Override
-	@Nullable
-	public SimpMessageMappingInfo getMatchingCondition(Message<?> message) {
+	public @Nullable SimpMessageMappingInfo getMatchingCondition(Message<?> message) {
 		CompositeMessageCondition condition = this.delegate.getMatchingCondition(message);
 		return condition != null ? new SimpMessageMappingInfo(condition) : null;
 	}
@@ -77,14 +77,8 @@ public class SimpMessageMappingInfo implements MessageCondition<SimpMessageMappi
 
 
 	@Override
-	public boolean equals(Object other) {
-		if (this == other) {
-			return true;
-		}
-		if (!(other instanceof SimpMessageMappingInfo)) {
-			return false;
-		}
-		return this.delegate.equals(((SimpMessageMappingInfo) other).delegate);
+	public boolean equals(@Nullable Object other) {
+		return (this == other || (other instanceof SimpMessageMappingInfo that && this.delegate.equals(that.delegate)));
 	}
 
 	@Override

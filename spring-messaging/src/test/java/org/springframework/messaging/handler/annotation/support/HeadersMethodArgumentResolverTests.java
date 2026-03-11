@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,7 +19,7 @@ package org.springframework.messaging.handler.annotation.support;
 import java.util.Collections;
 import java.util.Map;
 
-import org.junit.Test;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.core.MethodParameter;
 import org.springframework.messaging.Message;
@@ -30,7 +30,8 @@ import org.springframework.messaging.support.MessageBuilder;
 import org.springframework.messaging.support.MessageHeaderAccessor;
 import org.springframework.messaging.support.NativeMessageHeaderAccessor;
 
-import static org.junit.Assert.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 /**
  * Test fixture for {@link HeadersMethodArgumentResolver} tests.
@@ -38,7 +39,7 @@ import static org.junit.Assert.*;
  * @author Rossen Stoyanchev
  * @since 4.0
  */
-public class HeadersMethodArgumentResolverTests {
+class HeadersMethodArgumentResolverTests {
 
 	private final HeadersMethodArgumentResolver resolver = new HeadersMethodArgumentResolver();
 
@@ -49,61 +50,66 @@ public class HeadersMethodArgumentResolverTests {
 
 
 	@Test
-	public void supportsParameter() {
+	void supportsParameter() {
 
-		assertTrue(this.resolver.supportsParameter(
-				this.resolvable.annotPresent(Headers.class).arg(Map.class, String.class, Object.class)));
+		assertThat(this.resolver.supportsParameter(
+				this.resolvable.annotPresent(Headers.class).arg(Map.class, String.class, Object.class))).isTrue();
 
-		assertTrue(this.resolver.supportsParameter(this.resolvable.arg(MessageHeaders.class)));
-		assertTrue(this.resolver.supportsParameter(this.resolvable.arg(MessageHeaderAccessor.class)));
-		assertTrue(this.resolver.supportsParameter(this.resolvable.arg(TestMessageHeaderAccessor.class)));
+		assertThat(this.resolver.supportsParameter(this.resolvable.arg(MessageHeaders.class))).isTrue();
+		assertThat(this.resolver.supportsParameter(this.resolvable.arg(MessageHeaderAccessor.class))).isTrue();
+		assertThat(this.resolver.supportsParameter(this.resolvable.arg(TestMessageHeaderAccessor.class))).isTrue();
 
-		assertFalse(this.resolver.supportsParameter(this.resolvable.annotPresent(Headers.class).arg(String.class)));
+		assertThat(this.resolver.supportsParameter(this.resolvable.annotPresent(Headers.class).arg(String.class))).isFalse();
 	}
 
 	@Test
-	public void resolveArgumentAnnotated() throws Exception {
+	void resolveArgumentAnnotated() throws Exception {
 		MethodParameter param = this.resolvable.annotPresent(Headers.class).arg(Map.class, String.class, Object.class);
 		Object resolved = this.resolver.resolveArgument(param, this.message);
 
-		assertTrue(resolved instanceof Map);
+		boolean condition = resolved instanceof Map;
+		assertThat(condition).isTrue();
 		@SuppressWarnings("unchecked")
 		Map<String, Object> headers = (Map<String, Object>) resolved;
-		assertEquals("bar", headers.get("foo"));
-	}
-
-	@Test(expected = IllegalStateException.class)
-	public void resolveArgumentAnnotatedNotMap() throws Exception {
-		this.resolver.resolveArgument(this.resolvable.annotPresent(Headers.class).arg(String.class), this.message);
+		assertThat(headers.get("foo")).isEqualTo("bar");
 	}
 
 	@Test
-	public void resolveArgumentMessageHeaders() throws Exception {
+	void resolveArgumentAnnotatedNotMap() {
+		assertThatIllegalStateException().isThrownBy(() ->
+				this.resolver.resolveArgument(this.resolvable.annotPresent(Headers.class).arg(String.class), this.message));
+	}
+
+	@Test
+	void resolveArgumentMessageHeaders() throws Exception {
 		Object resolved = this.resolver.resolveArgument(this.resolvable.arg(MessageHeaders.class), this.message);
 
-		assertTrue(resolved instanceof MessageHeaders);
+		boolean condition = resolved instanceof MessageHeaders;
+		assertThat(condition).isTrue();
 		MessageHeaders headers = (MessageHeaders) resolved;
-		assertEquals("bar", headers.get("foo"));
+		assertThat(headers.get("foo")).isEqualTo("bar");
 	}
 
 	@Test
-	public void resolveArgumentMessageHeaderAccessor() throws Exception {
+	void resolveArgumentMessageHeaderAccessor() throws Exception {
 		MethodParameter param = this.resolvable.arg(MessageHeaderAccessor.class);
 		Object resolved = this.resolver.resolveArgument(param, this.message);
 
-		assertTrue(resolved instanceof MessageHeaderAccessor);
+		boolean condition = resolved instanceof MessageHeaderAccessor;
+		assertThat(condition).isTrue();
 		MessageHeaderAccessor headers = (MessageHeaderAccessor) resolved;
-		assertEquals("bar", headers.getHeader("foo"));
+		assertThat(headers.getHeader("foo")).isEqualTo("bar");
 	}
 
 	@Test
-	public void resolveArgumentMessageHeaderAccessorSubclass() throws Exception {
+	void resolveArgumentMessageHeaderAccessorSubclass() throws Exception {
 		MethodParameter param = this.resolvable.arg(TestMessageHeaderAccessor.class);
 		Object resolved = this.resolver.resolveArgument(param, this.message);
 
-		assertTrue(resolved instanceof TestMessageHeaderAccessor);
+		boolean condition = resolved instanceof TestMessageHeaderAccessor;
+		assertThat(condition).isTrue();
 		TestMessageHeaderAccessor headers = (TestMessageHeaderAccessor) resolved;
-		assertEquals("bar", headers.getHeader("foo"));
+		assertThat(headers.getHeader("foo")).isEqualTo("bar");
 	}
 
 

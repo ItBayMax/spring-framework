@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -14,31 +14,35 @@
  * limitations under the License.
  */
 
-package org.springframework.web.reactive.function.client
+package org.springframework.web.reactive.function.server
 
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.verify
-import kotlinx.coroutines.runBlocking
-import org.junit.Assert.assertEquals
-import org.junit.Assert.assertNull
-import org.junit.Test
+import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.Test
 import org.springframework.core.ParameterizedTypeReference
+import org.springframework.http.MediaType
 import org.springframework.http.codec.multipart.Part
+import org.springframework.util.CollectionUtils
 import org.springframework.util.MultiValueMap
-import org.springframework.web.reactive.function.server.*
 import org.springframework.web.server.WebSession
 import reactor.core.publisher.Mono
+import java.net.InetSocketAddress
 import java.security.Principal
+import java.util.*
 
 /**
  * Mock object based tests for [ServerRequest] Kotlin extensions.
  *
  * @author Sebastien Deleuze
+ * @author Igor Manushin
  */
 class ServerRequestExtensionsTests {
 
 	val request = mockk<ServerRequest>(relaxed = true)
+
+	val headers = mockk<ServerRequest.Headers>(relaxed = true)
 
 	@Test
 	fun `bodyToMono with reified type parameters`() {
@@ -53,57 +57,190 @@ class ServerRequestExtensionsTests {
 	}
 
 	@Test
-	fun awaitBody() {
+	fun `bodyToFlow with reified type parameters`() {
+		request.bodyToFlow<List<Foo>>()
+		verify { request.bodyToFlux(object : ParameterizedTypeReference<List<Foo>>() {}) }
+	}
+
+	@Test
+	fun `bodyToFlow with KClass parameters`() {
+		request.bodyToFlow(String::class)
+		verify { request.bodyToFlux(String::class.java) }
+	}
+
+	@Test
+	suspend fun `awaitBody with reified type parameters`() {
 		every { request.bodyToMono<String>() } returns Mono.just("foo")
-		runBlocking {
-			assertEquals("foo", request.awaitBody<String>())
-		}
+		assertThat(request.awaitBody<String>()).isEqualTo("foo")
 	}
 
 	@Test
-	fun awaitBodyNull() {
+	suspend fun `awaitBody with KClass parameters`() {
+		every { request.bodyToMono(String::class.java) } returns Mono.just("foo")
+		assertThat(request.awaitBody(String::class)).isEqualTo("foo")
+	}
+
+	@Test
+	suspend fun `awaitBodyOrNull with reified type parameters`() {
 		every { request.bodyToMono<String>() } returns Mono.empty()
-		runBlocking {
-			assertNull(request.awaitBody<String>())
-		}
+		assertThat(request.awaitBodyOrNull<String>()).isNull()
 	}
 
 	@Test
-	fun awaitFormData() {
+	suspend fun `awaitBodyOrNull with KClass parameters`() {
+		every { request.bodyToMono(String::class.java) } returns Mono.empty()
+		assertThat(request.awaitBodyOrNull(String::class)).isNull()
+	}
+
+	@Test
+	suspend fun awaitFormData() {
 		val map = mockk<MultiValueMap<String, String>>()
 		every { request.formData() } returns Mono.just(map)
-		runBlocking {
-			assertEquals(map, request.awaitFormData())
-		}
+		assertThat(request.awaitFormData()).isEqualTo(map)
 	}
 
 	@Test
-	fun awaitMultipartData() {
+	suspend fun awaitMultipartData() {
 		val map = mockk<MultiValueMap<String, Part>>()
 		every { request.multipartData() } returns Mono.just(map)
-		runBlocking {
-			assertEquals(map, request.awaitMultipartData())
-		}
+		assertThat(request.awaitMultipartData()).isEqualTo(map)
 	}
 
 	@Test
-	fun awaitPrincipal() {
+	suspend fun awaitPrincipal() {
 		val principal = mockk<Principal>()
 		every { request.principal() } returns Mono.just(principal)
-		runBlocking {
-			assertEquals(principal, request.awaitPrincipal())
-		}
+		assertThat(request.awaitPrincipal()).isEqualTo(principal)
 	}
 
 	@Test
-	fun awaitSession() {
+	suspend fun awaitSession() {
 		val session = mockk<WebSession>()
 		every { request.session() } returns Mono.just(session)
-		runBlocking {
-			assertEquals(session, request.awaitSession())
-		}
+		assertThat(request.awaitSession()).isEqualTo(session)
 	}
 
+	@Test
+	fun `remoteAddressOrNull with value`() {
+		val remoteAddress = InetSocketAddress(1234)
+		every { request.remoteAddress() } returns Optional.of(remoteAddress)
+		assertThat(remoteAddress).isEqualTo(request.remoteAddressOrNull())
+		verify { request.remoteAddress() }
+	}
+
+	@Test
+	fun `remoteAddressOrNull with null`() {
+		every { request.remoteAddress() } returns Optional.empty()
+		assertThat(request.remoteAddressOrNull()).isNull()
+		verify { request.remoteAddress() }
+	}
+
+	@Test
+	fun `attributeOrNull with value`() {
+		every { request.attributes() } returns mapOf("foo" to "bar")
+		assertThat(request.attributeOrNull("foo")).isEqualTo("bar")
+		verify { request.attributes() }
+	}
+
+	@Test
+	fun `attributeOrNull with null`() {
+		every { request.attributes() } returns mapOf("foo" to "bar")
+		assertThat(request.attributeOrNull("baz")).isNull()
+		verify { request.attributes() }
+	}
+
+	@Test
+	fun `queryParamOrNull with value`() {
+		every { request.queryParams() } returns CollectionUtils.toMultiValueMap(mapOf("foo" to listOf("bar")))
+		assertThat(request.queryParamOrNull("foo")).isEqualTo("bar")
+		verify { request.queryParams() }
+	}
+
+	@Test
+	fun `queryParamOrNull with values`() {
+		every { request.queryParams() } returns CollectionUtils.toMultiValueMap(mapOf("foo" to listOf("bar", "bar")))
+		assertThat(request.queryParamOrNull("foo")).isEqualTo("bar")
+		verify { request.queryParams() }
+	}
+
+	@Test
+	fun `queryParamOrNull with null`() {
+		every { request.queryParams() } returns CollectionUtils.toMultiValueMap(mapOf("foo" to listOf("bar")))
+		assertThat(request.queryParamOrNull("baz")).isNull()
+		verify { request.queryParams() }
+	}
+
+	@Test
+	fun `contentLengthOrNull with value`() {
+		every { headers.contentLength() } returns OptionalLong.of(123)
+		assertThat(headers.contentLengthOrNull()).isEqualTo(123)
+		verify { headers.contentLength() }
+	}
+
+	@Test
+	fun `contentLengthOrNull with null`() {
+		every { headers.contentLength() } returns OptionalLong.empty()
+		assertThat(headers.contentLengthOrNull()).isNull()
+		verify { headers.contentLength() }
+	}
+
+	@Test
+	fun `contentTypeOrNull with value`() {
+		every { headers.contentType() } returns Optional.of(MediaType.APPLICATION_JSON)
+		assertThat(headers.contentTypeOrNull()).isEqualTo(MediaType.APPLICATION_JSON)
+		verify { headers.contentType() }
+	}
+
+	@Test
+	fun `contentTypeOrNull with null`() {
+		every { headers.contentType() } returns Optional.empty()
+		assertThat(headers.contentTypeOrNull()).isNull()
+		verify { headers.contentType() }
+	}
+
+	@Test
+	fun `pathVariableOrNull with value`() {
+		every { request.pathVariables() } returns hashMapOf("name" to "123")
+		assert(request.pathVariableOrNull("name") == "123")
+		verify { request.pathVariables() }
+	}
+
+	@Test
+	fun `pathVariableOrNull with null`() {
+		every { request.pathVariables() } returns emptyMap()
+		assert(request.pathVariableOrNull("name") == null)
+		verify { request.pathVariables() }
+	}
+
+	@Test
+	suspend fun `bindAndAwait non-null`() {
+		val foo = Foo()
+		every { request.bind(Foo::class.java) } returns Mono.just(foo)
+		assertThat(request.bindAndAwait<Foo>()).isEqualTo(foo)
+		verify { request.bind(Foo::class.java) }
+	}
+
+	@Test
+	suspend fun `bindAndAwait null`() {
+		every { request.bind(Foo::class.java) } returns Mono.empty()
+		assertThat(request.bindAndAwait<Foo>()).isNull()
+		verify { request.bind(Foo::class.java) }
+	}
+
+	@Test
+	suspend fun `bindAndAwait non-null with customize`() {
+		val foo = Foo()
+		every { request.bind(Foo::class.java, any()) } returns Mono.just(foo)
+		assertThat(request.bindAndAwait<Foo> { it.setAllowedFields("name") }).isEqualTo(foo)
+		verify { request.bind(Foo::class.java, any()) }
+	}
+
+	@Test
+	suspend fun `bindAndAwait null with customize`() {
+		every { request.bind(Foo::class.java, any()) } returns Mono.empty()
+		assertThat(request.bindAndAwait<Foo> { it.setAllowedFields("name") }).isNull()
+		verify { request.bind(Foo::class.java, any()) }
+	}
 
 	class Foo
 }

@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,9 +18,13 @@ package org.springframework.aop.aspectj;
 
 import java.util.List;
 
+import org.jspecify.annotations.Nullable;
+
 import org.springframework.aop.Advisor;
 import org.springframework.aop.PointcutAdvisor;
 import org.springframework.aop.interceptor.ExposeInvocationInterceptor;
+import org.springframework.lang.Contract;
+import org.springframework.util.StringUtils;
 
 /**
  * Utility methods for working with AspectJ proxies.
@@ -69,8 +73,24 @@ public abstract class AspectJProxyUtils {
 	private static boolean isAspectJAdvice(Advisor advisor) {
 		return (advisor instanceof InstantiationModelAwarePointcutAdvisor ||
 				advisor.getAdvice() instanceof AbstractAspectJAdvice ||
-				(advisor instanceof PointcutAdvisor &&
-						((PointcutAdvisor) advisor).getPointcut() instanceof AspectJExpressionPointcut));
+				(advisor instanceof PointcutAdvisor pointcutAdvisor &&
+						pointcutAdvisor.getPointcut() instanceof AspectJExpressionPointcut));
+	}
+
+	@Contract("null -> false")
+	static boolean isVariableName(@Nullable String name) {
+		if (!StringUtils.hasLength(name)) {
+			return false;
+		}
+		if (!Character.isJavaIdentifierStart(name.charAt(0))) {
+			return false;
+		}
+		for (int i = 1; i < name.length(); i++) {
+			if (!Character.isJavaIdentifierPart(name.charAt(i))) {
+				return false;
+			}
+		}
+		return true;
 	}
 
 }

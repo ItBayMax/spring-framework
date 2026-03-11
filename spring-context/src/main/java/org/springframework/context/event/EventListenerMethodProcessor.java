@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,7 +18,6 @@ package org.springframework.context.event;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -26,6 +25,7 @@ import java.util.concurrent.ConcurrentHashMap;
 
 import org.apache.commons.logging.Log;
 import org.apache.commons.logging.LogFactory;
+import org.jspecify.annotations.Nullable;
 
 import org.springframework.aop.framework.autoproxy.AutoProxyUtils;
 import org.springframework.aop.scope.ScopedObject;
@@ -39,11 +39,12 @@ import org.springframework.context.ApplicationContext;
 import org.springframework.context.ApplicationContextAware;
 import org.springframework.context.ApplicationListener;
 import org.springframework.context.ConfigurableApplicationContext;
+import org.springframework.context.expression.BeanFactoryResolver;
 import org.springframework.core.MethodIntrospector;
 import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.core.annotation.AnnotationAwareOrderComparator;
 import org.springframework.core.annotation.AnnotationUtils;
-import org.springframework.lang.Nullable;
+import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.stereotype.Component;
 import org.springframework.util.Assert;
 import org.springframework.util.ClassUtils;
@@ -56,6 +57,7 @@ import org.springframework.util.CollectionUtils;
  *
  * @author Stephane Nicoll
  * @author Juergen Hoeller
+ * @author Sebastien Deleuze
  * @since 4.2
  * @see EventListenerFactory
  * @see DefaultEventListenerFactory
@@ -65,19 +67,23 @@ public class EventListenerMethodProcessor
 
 	protected final Log logger = LogFactory.getLog(getClass());
 
-	@Nullable
-	private ConfigurableApplicationContext applicationContext;
+	private @Nullable ConfigurableApplicationContext applicationContext;
 
-	@Nullable
-	private ConfigurableListableBeanFactory beanFactory;
+	private @Nullable ConfigurableListableBeanFactory beanFactory;
 
-	@Nullable
-	private List<EventListenerFactory> eventListenerFactories;
+	private @Nullable List<EventListenerFactory> eventListenerFactories;
 
-	private final EventExpressionEvaluator evaluator = new EventExpressionEvaluator();
+	private final StandardEvaluationContext originalEvaluationContext;
 
-	private final Set<Class<?>> nonAnnotatedClasses = Collections.newSetFromMap(new ConcurrentHashMap<>(64));
+	private final @Nullable EventExpressionEvaluator evaluator;
 
+	private final Set<Class<?>> nonAnnotatedClasses = ConcurrentHashMap.newKeySet(64);
+
+
+	public EventListenerMethodProcessor() {
+		this.originalEvaluationContext = new StandardEvaluationContext();
+		this.evaluator = new EventExpressionEvaluator(this.originalEvaluationContext);
+	}
 
 	@Override
 	public void setApplicationContext(ApplicationContext applicationContext) {
@@ -89,6 +95,7 @@ public class EventListenerMethodProcessor
 	@Override
 	public void postProcessBeanFactory(ConfigurableListableBeanFactory beanFactory) {
 		this.beanFactory = beanFactory;
+		this.originalEvaluationContext.setBeanResolver(new BeanFactoryResolver(this.beanFactory));
 
 		Map<String, EventListenerFactory> beans = beanFactory.getBeansOfType(EventListenerFactory.class, false, false);
 		List<EventListenerFactory> factories = new ArrayList<>(beans.values());
@@ -100,7 +107,7 @@ public class EventListenerMethodProcessor
 	@Override
 	public void afterSingletonsInstantiated() {
 		ConfigurableListableBeanFactory beanFactory = this.beanFactory;
-		Assert.state(this.beanFactory != null, "No ConfigurableListableBeanFactory set");
+		Assert.state(beanFactory != null, "No ConfigurableListableBeanFactory set");
 		String[] beanNames = beanFactory.getBeanNamesForType(Object.class);
 		for (String beanName : beanNames) {
 			if (!ScopedProxyUtils.isScopedTarget(beanName)) {
@@ -135,7 +142,7 @@ public class EventListenerMethodProcessor
 					}
 					catch (Throwable ex) {
 						throw new BeanInitializationException("Failed to process @EventListener " +
-								"annotation on bean with name '" + beanName + "'", ex);
+								"annotation on bean with name '" + beanName + "': " + ex.getMessage(), ex);
 					}
 				}
 			}
@@ -178,8 +185,8 @@ public class EventListenerMethodProcessor
 							Method methodToUse = AopUtils.selectInvocableMethod(method, context.getType(beanName));
 							ApplicationListener<?> applicationListener =
 									factory.createApplicationListener(beanName, targetType, methodToUse);
-							if (applicationListener instanceof ApplicationListenerMethodAdapter) {
-								((ApplicationListenerMethodAdapter) applicationListener).init(context, this.evaluator);
+							if (applicationListener instanceof ApplicationListenerMethodAdapter alma) {
+								alma.init(context, this.evaluator);
 							}
 							context.addApplicationListener(applicationListener);
 							break;

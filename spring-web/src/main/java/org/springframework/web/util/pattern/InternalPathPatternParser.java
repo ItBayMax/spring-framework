@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,7 +20,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.regex.PatternSyntaxException;
 
-import org.springframework.lang.Nullable;
+import org.jspecify.annotations.Nullable;
+
 import org.springframework.util.Assert;
 import org.springframework.web.util.pattern.PatternParseException.PatternMessage;
 
@@ -29,6 +30,7 @@ import org.springframework.web.util.pattern.PatternParseException.PatternMessage
  * {@link PathElement PathElements} in a linked list. Instances are reusable but are not thread-safe.
  *
  * @author Andy Clement
+ * @author Brian Clozel
  * @since 5.0
  */
 class InternalPathPatternParser {
@@ -51,7 +53,7 @@ class InternalPathPatternParser {
 	private boolean wildcard = false;
 
 	// Is the construct {*...} being used in a particular path element
-	private boolean isCaptureTheRestVariable = false;
+	private boolean isCaptureSegmentsVariable = false;
 
 	// Has the parser entered a {...} variable capture block in a particular
 	// path element
@@ -66,17 +68,17 @@ class InternalPathPatternParser {
 	// Start of the most recent variable capture in a particular path element
 	private int variableCaptureStart;
 
+	// Did we parse a WildcardSegments(**) or CaptureSegments({*foo}) PathElement already?
+	private boolean hasMultipleSegmentsElement = false;
+
 	// Variables captures in this path pattern
-	@Nullable
-	private List<String> capturedVariableNames;
+	private @Nullable List<String> capturedVariableNames;
 
 	// The head of the path element chain currently being built
-	@Nullable
-	private PathElement headPE;
+	private @Nullable PathElement headPE;
 
 	// The most recently constructed path element in the chain
-	@Nullable
-	private PathElement currentPE;
+	private @Nullable PathElement currentPE;
 
 
 	/**
@@ -105,17 +107,12 @@ class InternalPathPatternParser {
 
 		while (this.pos < this.pathPatternLength) {
 			char ch = this.pathPatternData[this.pos];
-			if (ch == this.parser.getSeparator()) {
+			char separator = this.parser.getPathOptions().separator();
+			if (ch == separator) {
 				if (this.pathElementStart != -1) {
 					pushPathElement(createPathElement());
 				}
-				if (peekDoubleWildcard()) {
-					pushPathElement(new WildcardTheRestPathElement(this.pos, this.parser.getSeparator()));
-					this.pos += 2;
-				}
-				else {
-					pushPathElement(new SeparatorPathElement(this.pos, this.parser.getSeparator()));
-				}
+				pushPathElement(new SeparatorPathElement(this.pos, separator));
 			}
 			else {
 				if (this.pathElementStart == -1) {
@@ -143,36 +140,38 @@ class InternalPathPatternParser {
 								PatternMessage.MISSING_OPEN_CAPTURE);
 					}
 					this.insideVariableCapture = false;
-					if (this.isCaptureTheRestVariable && (this.pos + 1) < this.pathPatternLength) {
-						throw new PatternParseException(this.pos + 1, this.pathPatternData,
-								PatternMessage.NO_MORE_DATA_EXPECTED_AFTER_CAPTURE_THE_REST);
-					}
 					this.variableCaptureCount++;
 				}
 				else if (ch == ':') {
-					if (this.insideVariableCapture && !this.isCaptureTheRestVariable) {
+					if (this.insideVariableCapture && !this.isCaptureSegmentsVariable) {
 						skipCaptureRegex();
 						this.insideVariableCapture = false;
 						this.variableCaptureCount++;
 					}
 				}
+				else if (isDoubleWildcard(separator)) {
+					checkValidMultipleSegmentsElements(this.pos, this.pos + 1);
+					pushPathElement(new WildcardSegmentsPathElement(this.pos, separator));
+					this.hasMultipleSegmentsElement = true;
+					this.pos++;
+				}
 				else if (ch == '*') {
 					if (this.insideVariableCapture && this.variableCaptureStart == this.pos - 1) {
-						this.isCaptureTheRestVariable = true;
+						this.isCaptureSegmentsVariable = true;
 					}
 					this.wildcard = true;
 				}
 				// Check that the characters used for captured variable names are like java identifiers
 				if (this.insideVariableCapture) {
-					if ((this.variableCaptureStart + 1 + (this.isCaptureTheRestVariable ? 1 : 0)) == this.pos &&
+					if ((this.variableCaptureStart + 1 + (this.isCaptureSegmentsVariable ? 1 : 0)) == this.pos &&
 							!Character.isJavaIdentifierStart(ch)) {
 						throw new PatternParseException(this.pos, this.pathPatternData,
 								PatternMessage.ILLEGAL_CHARACTER_AT_START_OF_CAPTURE_DESCRIPTOR,
 								Character.toString(ch));
 
 					}
-					else if ((this.pos > (this.variableCaptureStart + 1 + (this.isCaptureTheRestVariable ? 1 : 0)) &&
-							!Character.isJavaIdentifierPart(ch))) {
+					else if ((this.pos > (this.variableCaptureStart + 1 + (this.isCaptureSegmentsVariable ? 1 : 0)) &&
+							!Character.isJavaIdentifierPart(ch) && ch != '-')) {
 						throw new PatternParseException(this.pos, this.pathPatternData,
 								PatternMessage.ILLEGAL_CHARACTER_IN_CAPTURE_DESCRIPTOR,
 								Character.toString(ch));
@@ -191,8 +190,8 @@ class InternalPathPatternParser {
 	 * Just hit a ':' and want to jump over the regex specification for this
 	 * variable. pos will be pointing at the ':', we want to skip until the }.
 	 * <p>
-	 * Nested {...} pairs don't have to be escaped: <tt>/abc/{var:x{1,2}}/def</tt>
-	 * <p>An escaped } will not be treated as the end of the regex: <tt>/abc/{var:x\\{y:}/def</tt>
+	 * Nested {...} pairs don't have to be escaped: <code>/abc/{var:x{1,2}}/def</code>
+	 * <p>An escaped } will not be treated as the end of the regex: <code>/abc/{var:x\\{y:}/def</code>
 	 * <p>A separator that should not indicate the end of the regex can be escaped:
 	 */
 	private void skipCaptureRegex() {
@@ -221,7 +220,7 @@ class InternalPathPatternParser {
 				}
 				curlyBracketDepth--;
 			}
-			if (ch == this.parser.getSeparator() && !previousBackslash) {
+			if (ch == this.parser.getPathOptions().separator() && !previousBackslash) {
 				throw new PatternParseException(this.pos, this.pathPatternData,
 						PatternMessage.MISSING_CLOSE_CAPTURE);
 			}
@@ -233,18 +232,36 @@ class InternalPathPatternParser {
 				PatternMessage.MISSING_CLOSE_CAPTURE);
 	}
 
-	/**
-	 * After processing a separator, a quick peek whether it is followed by
-	 * (and only before the end of the pattern or the next separator).
-	 */
-	private boolean peekDoubleWildcard() {
-		if ((this.pos + 2) >= this.pathPatternLength) {
+	private boolean isDoubleWildcard(char separator) {
+		// next char is present
+		if ((this.pos + 1) >= this.pathPatternLength) {
 			return false;
 		}
-		if (this.pathPatternData[this.pos + 1] != '*' || this.pathPatternData[this.pos + 2] != '*') {
+		// current char and next char are '*'
+		if (this.pathPatternData[this.pos] != '*' || this.pathPatternData[this.pos + 1] != '*') {
 			return false;
 		}
-		return (this.pos + 3 == this.pathPatternLength);
+		// previous char is a separator, if any
+		if ((this.pos - 1 >= 0) && (this.pathPatternData[this.pos - 1] != separator)) {
+			return false;
+		}
+		// next char is a separator, if any
+		if (((this.pos + 2) < this.pathPatternLength) &&
+				this.pathPatternData[this.pos + 2] != separator) {
+			return false;
+		}
+		return true;
+	}
+
+	private void checkValidMultipleSegmentsElements(int startPosition, int endPosition) {
+		if (this.hasMultipleSegmentsElement) {
+			throw new PatternParseException(this.pos, this.pathPatternData,
+					PatternMessage.CANNOT_HAVE_MANY_MULTISEGMENT_PATHELEMENTS);
+		}
+		if (startPosition > 1 && endPosition != this.pathPatternLength - 1) {
+			throw new PatternParseException(this.pos, this.pathPatternData,
+					PatternMessage.INVALID_LOCATION_FOR_MULTISEGMENT_PATHELEMENT);
+		}
 	}
 
 	/**
@@ -252,7 +269,8 @@ class InternalPathPatternParser {
 	 * @param newPathElement the new path element to add
 	 */
 	private void pushPathElement(PathElement newPathElement) {
-		if (newPathElement instanceof CaptureTheRestPathElement) {
+		if (newPathElement instanceof CaptureSegmentsPathElement ||
+				newPathElement instanceof WildcardSegmentsPathElement) {
 			// There must be a separator ahead of this thing
 			// currentPE SHOULD be a SeparatorPathElement
 			if (this.currentPE == null) {
@@ -273,7 +291,8 @@ class InternalPathPatternParser {
 				this.currentPE = newPathElement;
 			}
 			else {
-				throw new IllegalStateException("Expected SeparatorPathElement but was " + this.currentPE);
+				throw new IllegalStateException("Expected SeparatorPathElement before " +
+						newPathElement.getClass().getName() +" but was " + this.currentPE);
 			}
 		}
 		else {
@@ -309,20 +328,23 @@ class InternalPathPatternParser {
 		}
 
 		PathElement newPE = null;
+		char separator = this.parser.getPathOptions().separator();
 
 		if (this.variableCaptureCount > 0) {
 			if (this.variableCaptureCount == 1 && this.pathElementStart == this.variableCaptureStart &&
 					this.pathPatternData[this.pos - 1] == '}') {
-				if (this.isCaptureTheRestVariable) {
+				if (this.isCaptureSegmentsVariable) {
 					// It is {*....}
-					newPE = new CaptureTheRestPathElement(
-							this.pathElementStart, getPathElementText(), this.parser.getSeparator());
+					checkValidMultipleSegmentsElements(this.pathElementStart, this.pos -1);
+					this.hasMultipleSegmentsElement = true;
+					newPE = new CaptureSegmentsPathElement(
+							this.pathElementStart, getPathElementText(), separator);
 				}
 				else {
 					// It is a full capture of this element (possibly with constraint), for example: /foo/{abc}/
 					try {
 						newPE = new CaptureVariablePathElement(this.pathElementStart, getPathElementText(),
-								this.parser.isCaseSensitive(), this.parser.getSeparator());
+								this.parser.isCaseSensitive(), separator);
 					}
 					catch (PatternSyntaxException pse) {
 						throw new PatternParseException(pse,
@@ -334,13 +356,13 @@ class InternalPathPatternParser {
 				}
 			}
 			else {
-				if (this.isCaptureTheRestVariable) {
+				if (this.isCaptureSegmentsVariable) {
 					throw new PatternParseException(this.pathElementStart, this.pathPatternData,
 							PatternMessage.CAPTURE_ALL_IS_STANDALONE_CONSTRUCT);
 				}
 				RegexPathElement newRegexSection = new RegexPathElement(this.pathElementStart,
 						getPathElementText(), this.parser.isCaseSensitive(),
-						this.pathPatternData, this.parser.getSeparator());
+						this.pathPatternData, separator);
 				for (String variableName : newRegexSection.getVariableNames()) {
 					recordCapturedVariable(this.pathElementStart, variableName);
 				}
@@ -350,20 +372,20 @@ class InternalPathPatternParser {
 		else {
 			if (this.wildcard) {
 				if (this.pos - 1 == this.pathElementStart) {
-					newPE = new WildcardPathElement(this.pathElementStart, this.parser.getSeparator());
+					newPE = new WildcardPathElement(this.pathElementStart, separator);
 				}
 				else {
 					newPE = new RegexPathElement(this.pathElementStart, getPathElementText(),
-							this.parser.isCaseSensitive(), this.pathPatternData, this.parser.getSeparator());
+							this.parser.isCaseSensitive(), this.pathPatternData, separator);
 				}
 			}
 			else if (this.singleCharWildcardCount != 0) {
 				newPE = new SingleCharWildcardedPathElement(this.pathElementStart, getPathElementText(),
-						this.singleCharWildcardCount, this.parser.isCaseSensitive(), this.parser.getSeparator());
+						this.singleCharWildcardCount, this.parser.isCaseSensitive(), separator);
 			}
 			else {
 				newPE = new LiteralPathElement(this.pathElementStart, getPathElementText(),
-						this.parser.isCaseSensitive(), this.parser.getSeparator());
+						this.parser.isCaseSensitive(), separator);
 			}
 		}
 
@@ -373,7 +395,7 @@ class InternalPathPatternParser {
 	/**
 	 * For a path element representing a captured variable, locate the constraint pattern.
 	 * Assumes there is a constraint pattern.
-	 * @param data a complete path expression, e.g. /aaa/bbb/{ccc:...}
+	 * @param data a complete path expression, for example, /aaa/bbb/{ccc:...}
 	 * @param offset the start of the capture pattern of interest
 	 * @return the index of the character after the ':' within
 	 * the pattern expression relative to the start of the whole expression
@@ -398,7 +420,7 @@ class InternalPathPatternParser {
 		this.insideVariableCapture = false;
 		this.variableCaptureCount = 0;
 		this.wildcard = false;
-		this.isCaptureTheRestVariable = false;
+		this.isCaptureSegmentsVariable = false;
 		this.variableCaptureStart = -1;
 	}
 

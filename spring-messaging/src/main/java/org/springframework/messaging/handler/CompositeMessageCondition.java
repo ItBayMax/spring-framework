@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -20,6 +20,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
+
+import org.jspecify.annotations.Nullable;
 
 import org.springframework.messaging.Message;
 import org.springframework.util.Assert;
@@ -79,7 +81,7 @@ public class CompositeMessageCondition implements MessageCondition<CompositeMess
 	}
 
 	@Override
-	public CompositeMessageCondition getMatchingCondition(Message<?> message) {
+	public @Nullable CompositeMessageCondition getMatchingCondition(Message<?> message) {
 		List<MessageCondition<?>> result = new ArrayList<>(this.messageConditions.size());
 		for (MessageCondition<?> condition : this.messageConditions) {
 			MessageCondition<?> matchingCondition = (MessageCondition<?>) condition.getMatchingCondition(message);
@@ -96,7 +98,7 @@ public class CompositeMessageCondition implements MessageCondition<CompositeMess
 		checkCompatible(other);
 		List<MessageCondition<?>> otherConditions = other.getMessageConditions();
 		for (int i = 0; i < this.messageConditions.size(); i++) {
-			int result = compare (this.messageConditions.get(i), otherConditions.get(i), message);
+			int result = compare(this.messageConditions.get(i), otherConditions.get(i), message);
 			if (result != 0) {
 				return result;
 			}
@@ -126,14 +128,13 @@ public class CompositeMessageCondition implements MessageCondition<CompositeMess
 
 
 	@Override
-	public boolean equals(Object other) {
+	public boolean equals(@Nullable Object other) {
 		if (this == other) {
 			return true;
 		}
-		if (!(other instanceof CompositeMessageCondition)) {
+		if (!(other instanceof CompositeMessageCondition otherComposite)) {
 			return false;
 		}
-		CompositeMessageCondition otherComposite = (CompositeMessageCondition) other;
 		checkCompatible(otherComposite);
 		List<MessageCondition<?>> otherConditions = otherComposite.getMessageConditions();
 		for (int i = 0; i < this.messageConditions.size(); i++) {

@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -19,11 +19,12 @@ package org.springframework.web.servlet.function;
 import java.util.Collection;
 import java.util.Map;
 import java.util.function.Consumer;
-import javax.servlet.http.Cookie;
+
+import jakarta.servlet.http.Cookie;
+import org.jspecify.annotations.Nullable;
 
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.HttpStatus;
-import org.springframework.lang.Nullable;
+import org.springframework.http.HttpStatusCode;
 import org.springframework.util.MultiValueMap;
 
 /**
@@ -119,19 +120,22 @@ public interface RenderingResponse extends ServerResponse {
 		Builder header(String headerName, String... headerValues);
 
 		/**
-		 * Copy the given headers into the entity's headers map.
-		 * @param headers the existing HttpHeaders to copy from
+		 * Manipulate this response's headers with the given consumer. The
+		 * headers provided to the consumer are "live", so that the consumer can be used to
+		 * {@linkplain HttpHeaders#set(String, String) overwrite} existing header values,
+		 * {@linkplain HttpHeaders#remove(String) remove} values, or use any of the other
+		 * {@link HttpHeaders} methods.
+		 * @param headersConsumer a function that consumes the {@code HttpHeaders}
 		 * @return this builder
-		 * @see HttpHeaders#add(String, String)
 		 */
-		Builder headers(HttpHeaders headers);
+		Builder headers(Consumer<HttpHeaders> headersConsumer);
 
 		/**
 		 * Set the HTTP status.
 		 * @param status the response status
 		 * @return this builder
 		 */
-		Builder status(HttpStatus status);
+		Builder status(HttpStatusCode status);
 
 		/**
 		 * Set the HTTP status.

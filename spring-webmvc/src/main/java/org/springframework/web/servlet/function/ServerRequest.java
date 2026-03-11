@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,16 +21,20 @@ import java.net.InetSocketAddress;
 import java.net.URI;
 import java.nio.charset.Charset;
 import java.security.Principal;
+import java.time.Instant;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.function.Consumer;
-import javax.servlet.ServletException;
-import javax.servlet.http.Cookie;
-import javax.servlet.http.HttpServletRequest;
-import javax.servlet.http.HttpSession;
+
+import jakarta.servlet.ServletException;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
+import jakarta.servlet.http.HttpSession;
+import jakarta.servlet.http.Part;
+import org.jspecify.annotations.Nullable;
 
 import org.springframework.core.ParameterizedTypeReference;
 import org.springframework.core.io.buffer.DataBuffer;
@@ -39,10 +43,14 @@ import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpRange;
 import org.springframework.http.MediaType;
 import org.springframework.http.converter.HttpMessageConverter;
-import org.springframework.http.server.PathContainer;
-import org.springframework.lang.Nullable;
+import org.springframework.http.server.RequestPath;
+import org.springframework.util.Assert;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.MultiValueMap;
+import org.springframework.validation.BindException;
+import org.springframework.web.accept.ApiVersionStrategy;
+import org.springframework.web.bind.WebDataBinder;
+import org.springframework.web.util.ServletRequestPathUtils;
 import org.springframework.web.util.UriBuilder;
 
 /**
@@ -58,18 +66,9 @@ public interface ServerRequest {
 	/**
 	 * Get the HTTP method.
 	 * @return the HTTP method as an HttpMethod enum value, or {@code null}
-	 * if not resolvable (e.g. in case of a non-standard HTTP method)
+	 * if not resolvable (for example, in case of a non-standard HTTP method)
 	 */
-	@Nullable
-	default HttpMethod method() {
-		return HttpMethod.resolve(methodName());
-	}
-
-	/**
-	 * Get the name of the HTTP method.
-	 * @return the HTTP method as a String
-	 */
-	String methodName();
+	HttpMethod method();
 
 	/**
 	 * Get the request URI.
@@ -79,7 +78,6 @@ public interface ServerRequest {
 	/**
 	 * Get a {@code UriBuilderComponents} from the URI associated with this
 	 * {@code ServerRequest}.
-	 *
 	 * @return a URI builder
 	 */
 	UriBuilder uriBuilder();
@@ -88,14 +86,15 @@ public interface ServerRequest {
 	 * Get the request path.
 	 */
 	default String path() {
-		return uri().getRawPath();
+		return requestPath().pathWithinApplication().value();
 	}
 
 	/**
 	 * Get the request path as a {@code PathContainer}.
+	 * @since 5.3
 	 */
-	default PathContainer pathContainer() {
-		return PathContainer.parsePath(path());
+	default RequestPath requestPath() {
+		return ServletRequestPathUtils.getParsedRequestPath(servletRequest());
 	}
 
 	/**
@@ -119,6 +118,13 @@ public interface ServerRequest {
 	List<HttpMessageConverter<?>> messageConverters();
 
 	/**
+	 * Return the configured {@link ApiVersionStrategy}, or {@code null}.
+	 * @since 7.0
+	 */
+	@Nullable
+	ApiVersionStrategy apiVersionStrategy();
+
+	/**
 	 * Extract the body as an object of the given type.
 	 * @param bodyType the type of return value
 	 * @param <T> the body type
@@ -133,6 +139,30 @@ public interface ServerRequest {
 	 * @return the body
 	 */
 	<T> T body(ParameterizedTypeReference<T> bodyType) throws ServletException, IOException;
+
+	/**
+	 * Bind to this request and return an instance of the given type.
+	 * @param bindType the type of class to bind this request to
+	 * @param <T> the type to bind to
+	 * @return a constructed and bound instance of {@code bindType}
+	 * @throws BindException in case of binding errors
+	 * @since 6.1
+	 */
+	default <T> T bind(Class<T> bindType) throws BindException {
+		return bind(bindType, dataBinder -> {});
+	}
+
+	/**
+	 * Bind to this request and return an instance of the given type.
+	 * @param bindType the type of class to bind this request to
+	 * @param dataBinderCustomizer used to customize the data binder, for example, set
+	 * (dis)allowed fields
+	 * @param <T> the type to bind to
+	 * @return a constructed and bound instance of {@code bindType}
+	 * @throws BindException in case of binding errors
+	 * @since 6.1
+	 */
+	<T> T bind(Class<T> bindType, Consumer<WebDataBinder> dataBinderCustomizer) throws BindException;
 
 	/**
 	 * Get the request attribute value if present.
@@ -156,9 +186,11 @@ public interface ServerRequest {
 	Map<String, Object> attributes();
 
 	/**
-	 * Get the first query parameter with the given name, if present.
+	 * Get the first parameter with the given name, if present. Servlet
+	 * parameters are contained in the query string or posted form data.
 	 * @param name the parameter name
 	 * @return the parameter value
+	 * @see HttpServletRequest#getParameter(String)
 	 */
 	default Optional<String> param(String name) {
 		List<String> paramValues = params().get(name);
@@ -175,9 +207,22 @@ public interface ServerRequest {
 	}
 
 	/**
-	 * Get all query parameters for this request.
+	 * Get all parameters for this request. Servlet parameters are contained
+	 * in the query string or posted form data.
+	 * @see HttpServletRequest#getParameterMap()
 	 */
 	MultiValueMap<String, String> params();
+
+	/**
+	 * Get the parts of a multipart request, provided the Content-Type is
+	 * {@code "multipart/form-data"}, or an exception otherwise.
+	 * @return the multipart data, mapping from name to part(s)
+	 * @throws IOException           if an I/O error occurred during the retrieval
+	 * @throws ServletException      if this request is not of type {@code "multipart/form-data"}
+	 * @since 5.3
+	 * @see HttpServletRequest#getParts()
+	 */
+	MultiValueMap<String, Part> multipartData() throws IOException, ServletException;
 
 	/**
 	 * Get the path variable with the given name, if present.
@@ -188,7 +233,7 @@ public interface ServerRequest {
 	default String pathVariable(String name) {
 		Map<String, String> pathVariables = pathVariables();
 		if (pathVariables.containsKey(name)) {
-			return pathVariables().get(name);
+			return pathVariables.get(name);
 		}
 		else {
 			throw new IllegalArgumentException("No path variable with name \"" + name + "\" available");
@@ -219,6 +264,109 @@ public interface ServerRequest {
 	 */
 	HttpServletRequest servletRequest();
 
+	/**
+	 * Check whether the requested resource has been modified given the
+	 * supplied last-modified timestamp (as determined by the application).
+	 * If not modified, this method returns a response with corresponding
+	 * status code and headers, otherwise an empty result.
+	 * <p>Typical usage:
+	 * <pre class="code">
+	 * public ServerResponse myHandleMethod(ServerRequest request) {
+	 *   Instant lastModified = // application-specific calculation
+	 *	 return request.checkNotModified(lastModified)
+	 *	   .orElseGet(() -&gt; {
+	 *	     // further request processing, actually building content
+	 *		 return ServerResponse.ok().body(...);
+	 *	   });
+	 * }</pre>
+	 * <p>This method works with conditional GET/HEAD requests, but
+	 * also with conditional POST/PUT/DELETE requests.
+	 * <p><strong>Note:</strong> you can use either
+	 * this {@code #checkNotModified(Instant)} method; or
+	 * {@link #checkNotModified(String)}. If you want to enforce both
+	 * a strong entity tag and a Last-Modified value,
+	 * as recommended by the HTTP specification,
+	 * then you should use {@link #checkNotModified(Instant, String)}.
+	 * @param lastModified the last-modified timestamp that the
+	 * application determined for the underlying resource
+	 * @return a corresponding response if the request qualifies as not
+	 * modified, or an empty result otherwise.
+	 * @since 5.2.5
+	 */
+	default Optional<ServerResponse> checkNotModified(Instant lastModified) {
+		Assert.notNull(lastModified, "LastModified must not be null");
+		return DefaultServerRequest.checkNotModified(servletRequest(), lastModified, null);
+	}
+
+	/**
+	 * Check whether the requested resource has been modified given the
+	 * supplied {@code ETag} (entity tag), as determined by the application.
+	 * If not modified, this method returns a response with corresponding
+	 * status code and headers, otherwise an empty result.
+	 * <p>Typical usage:
+	 * <pre class="code">
+	 * public ServerResponse myHandleMethod(ServerRequest request) {
+	 *   String eTag = // application-specific calculation
+	 *	 return request.checkNotModified(eTag)
+	 *	   .orElseGet(() -&gt; {
+	 *	     // further request processing, actually building content
+	 *		 return ServerResponse.ok().body(...);
+	 *	   });
+	 * }</pre>
+	 * <p>This method works with conditional GET/HEAD requests, but
+	 * also with conditional POST/PUT/DELETE requests.
+	 * <p><strong>Note:</strong> you can use either
+	 * this {@link #checkNotModified(Instant)} method; or
+	 * {@code #checkNotModified(String)}. If you want to enforce both
+	 * a strong entity tag and a Last-Modified value,
+	 * as recommended by the HTTP specification,
+	 * then you should use {@link #checkNotModified(Instant, String)}.
+	 * @param etag the entity tag that the application determined
+	 * for the underlying resource. This parameter will be padded
+	 * with quotes (") if necessary.
+	 * @return a corresponding response if the request qualifies as not
+	 * modified, or an empty result otherwise.
+	 * @since 5.2.5
+	 */
+	default Optional<ServerResponse> checkNotModified(String etag) {
+		Assert.notNull(etag, "Etag must not be null");
+		return DefaultServerRequest.checkNotModified(servletRequest(), null, etag);
+	}
+
+	/**
+	 * Check whether the requested resource has been modified given the
+	 * supplied {@code ETag} (entity tag) and last-modified timestamp,
+	 * as determined by the application.
+	 * If not modified, this method returns a response with corresponding
+	 * status code and headers, otherwise an empty result.
+	 * <p>Typical usage:
+	 * <pre class="code">
+	 * public ServerResponse myHandleMethod(ServerRequest request) {
+	 *   Instant lastModified = // application-specific calculation
+	 *   String eTag = // application-specific calculation
+	 *	 return request.checkNotModified(lastModified, eTag)
+	 *	   .orElseGet(() -&gt; {
+	 *	     // further request processing, actually building content
+	 *		 return ServerResponse.ok().body(...);
+	 *	   });
+	 * }</pre>
+	 * <p>This method works with conditional GET/HEAD requests, but
+	 * also with conditional POST/PUT/DELETE requests.
+	 * @param lastModified the last-modified timestamp that the
+	 * application determined for the underlying resource
+	 * @param etag the entity tag that the application determined
+	 * for the underlying resource. This parameter will be padded
+	 * with quotes (") if necessary.
+	 * @return a corresponding response if the request qualifies as not
+	 * modified, or an empty result otherwise.
+	 * @since 5.2.5
+	 */
+	default Optional<ServerResponse> checkNotModified(Instant lastModified, String etag) {
+		Assert.notNull(lastModified, "LastModified must not be null");
+		Assert.notNull(etag, "Etag must not be null");
+		return DefaultServerRequest.checkNotModified(servletRequest(), lastModified, etag);
+	}
+
 
 	// Static methods
 
@@ -234,6 +382,22 @@ public interface ServerRequest {
 	}
 
 	/**
+	 * Create a new {@code ServerRequest} based on the given {@code HttpServletRequest} and
+	 * message converters.
+	 * @param servletRequest the request
+	 * @param messageReaders the message readers
+	 * @param versionStrategy a strategy to use to parse version
+	 * @return the created {@code ServerRequest}
+	 * @since 7.0
+	 */
+	static ServerRequest create(
+			HttpServletRequest servletRequest, List<HttpMessageConverter<?>> messageReaders,
+			@Nullable ApiVersionStrategy versionStrategy) {
+
+		return new DefaultServerRequest(servletRequest, messageReaders, versionStrategy);
+	}
+
+	/**
 	 * Create a builder with the status, headers, and cookies of the given request.
 	 * @param other the response to copy the status, headers, and cookies from
 	 * @return the created builder
@@ -241,6 +405,7 @@ public interface ServerRequest {
 	static Builder from(ServerRequest other) {
 		return new DefaultServerRequestBuilder(other);
 	}
+
 
 
 	/**
@@ -286,8 +451,7 @@ public interface ServerRequest {
 		 * {@linkplain InetSocketAddress#getPort() port} in the returned address will
 		 * be {@code 0}.
 		 */
-		@Nullable
-		InetSocketAddress host();
+		@Nullable InetSocketAddress host();
 
 		/**
 		 * Get the value of the {@code Range} header.
@@ -301,6 +465,17 @@ public interface ServerRequest {
 		 * @param headerName the header name
 		 */
 		List<String> header(String headerName);
+
+		/**
+		 * Get the first header value, if any, for the header for the given name.
+		 * <p>Returns {@code null} if no header values are found.
+		 * @param headerName the header name
+		 * @since 5.2.5
+		 */
+		default @Nullable String firstHeader(String headerName) {
+			List<String> list = header(headerName);
+			return list.isEmpty() ? null : list.get(0);
+		}
 
 		/**
 		 * Get the headers as an instance of {@link HttpHeaders}.
@@ -330,7 +505,7 @@ public interface ServerRequest {
 
 		/**
 		 * Add the given header value(s) under the given name.
-		 * @param headerName  the header name
+		 * @param headerName the header name
 		 * @param headerValues the header value(s)
 		 * @return this builder
 		 * @see HttpHeaders#add(String, String)
@@ -341,7 +516,7 @@ public interface ServerRequest {
 		 * Manipulate this request's headers with the given consumer.
 		 * <p>The headers provided to the consumer are "live", so that the consumer can be used to
 		 * {@linkplain HttpHeaders#set(String, String) overwrite} existing header values,
-		 * {@linkplain HttpHeaders#remove(Object) remove} values, or use any of the other
+		 * {@linkplain HttpHeaders#remove(String) remove} values, or use any of the other
 		 * {@link HttpHeaders} methods.
 		 * @param headersConsumer a function that consumes the {@code HttpHeaders}
 		 * @return this builder
@@ -405,6 +580,32 @@ public interface ServerRequest {
 		 * @return this builder
 		 */
 		Builder attributes(Consumer<Map<String, Object>> attributesConsumer);
+
+		/**
+		 * Add a parameter with the given name and value.
+		 * @param name the parameter name
+		 * @param values the parameter value(s)
+		 * @return this builder
+		 */
+		Builder param(String name, String... values);
+
+		/**
+		 * Manipulate this request's parameters with the given consumer.
+		 * <p>The map provided to the consumer is "live", so that the consumer can be used to
+		 * {@linkplain MultiValueMap#set(Object, Object) overwrite} existing cookies,
+		 * {@linkplain MultiValueMap#remove(Object) remove} cookies, or use any of the other
+		 * {@link MultiValueMap} methods.
+		 * @param paramsConsumer a function that consumes the parameters map
+		 * @return this builder
+		 */
+		Builder params(Consumer<MultiValueMap<String, String>> paramsConsumer);
+
+		/**
+		 * Set the remote address of the request.
+		 * @param remoteAddress the remote address
+		 * @return this builder
+		 */
+		Builder remoteAddress(InetSocketAddress remoteAddress);
 
 		/**
 		 * Build the request.

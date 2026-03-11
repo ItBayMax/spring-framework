@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -16,6 +16,7 @@
 
 package org.springframework.web.servlet.function;
 
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
@@ -38,6 +39,7 @@ class ToStringVisitor implements RouterFunctions.Visitor, RequestPredicates.Visi
 
 
 	// RouterFunctions.Visitor
+
 	@Override
 	public void startNested(RequestPredicate predicate) {
 		indent();
@@ -68,16 +70,19 @@ class ToStringVisitor implements RouterFunctions.Visitor, RequestPredicates.Visi
 	}
 
 	@Override
+	public void attributes(Map<String, Object> attributes) {
+	}
+
+	@Override
 	public void unknown(RouterFunction<?> routerFunction) {
 		indent();
 		this.builder.append(routerFunction);
 	}
 
 	private void indent() {
-		for (int i=0; i < this.indent; i++) {
-			this.builder.append(' ');
-		}
+		this.builder.append(" ".repeat(Math.max(0, this.indent)));
 	}
+
 
 	// RequestPredicates.Visitor
 
@@ -96,6 +101,8 @@ class ToStringVisitor implements RouterFunctions.Visitor, RequestPredicates.Visi
 		this.builder.append(pattern);
 	}
 
+	@SuppressWarnings("removal")
+	@Deprecated(since = "7.0", forRemoval = true)
 	@Override
 	public void pathExtension(String extension) {
 		this.builder.append(String.format("*.%s", extension));
@@ -109,6 +116,11 @@ class ToStringVisitor implements RouterFunctions.Visitor, RequestPredicates.Visi
 	@Override
 	public void param(String name, String value) {
 		this.builder.append(String.format("?%s == %s", name, value));
+	}
+
+	@Override
+	public void version(String version) {
+		this.builder.append(String.format("version: %s", version));
 	}
 
 	@Override
@@ -156,6 +168,7 @@ class ToStringVisitor implements RouterFunctions.Visitor, RequestPredicates.Visi
 	public void unknown(RequestPredicate predicate) {
 		this.builder.append(predicate);
 	}
+
 	@Override
 	public String toString() {
 		String result = this.builder.toString();
@@ -164,4 +177,5 @@ class ToStringVisitor implements RouterFunctions.Visitor, RequestPredicates.Visi
 		}
 		return result;
 	}
+
 }

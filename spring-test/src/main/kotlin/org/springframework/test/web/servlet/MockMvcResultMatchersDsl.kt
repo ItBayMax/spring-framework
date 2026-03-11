@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2019 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -30,29 +30,29 @@ class MockMvcResultMatchersDsl(private val actions: ResultActions) {
 	/**
 	 * @see MockMvcResultMatchers.request
 	 */
-	fun request(matcher: RequestResultMatchers.() -> ResultMatcher) {
-		actions.andExpect(MockMvcResultMatchers.request().matcher())
+	fun request(dsl: RequestResultMatchersDsl.() -> Unit) {
+		RequestResultMatchersDsl(actions).dsl()
 	}
 
 	/**
 	 * @see MockMvcResultMatchers.view
 	 */
-	fun view(matcher: ViewResultMatchers.() -> ResultMatcher) {
-		actions.andExpect(MockMvcResultMatchers.view().matcher())
+	fun view(dsl: ViewResultMatchersDsl.() -> Unit) {
+		ViewResultMatchersDsl(actions).dsl()
 	}
 
 	/**
 	 * @see MockMvcResultMatchers.model
 	 */
-	fun model(matcher: ModelResultMatchers.() -> ResultMatcher) {
-		actions.andExpect(MockMvcResultMatchers.model().matcher())
+	fun model(dsl: ModelResultMatchersDsl.() -> Unit) {
+		ModelResultMatchersDsl(actions).dsl()
 	}
 
 	/**
 	 * @see MockMvcResultMatchers.flash
 	 */
-	fun flash(matcher: FlashAttributeResultMatchers.() -> ResultMatcher) {
-		actions.andExpect(MockMvcResultMatchers.flash().matcher())
+	fun flash(dsl: FlashAttributeResultMatchersDsl.() -> Unit) {
+		FlashAttributeResultMatchersDsl(actions).dsl()
 	}
 
 	/**
@@ -93,51 +93,50 @@ class MockMvcResultMatchersDsl(private val actions: ResultActions) {
 	/**
 	 * @see MockMvcResultMatchers.status
 	 */
-	fun status(matcher: StatusResultMatchers.() -> ResultMatcher) {
-		actions.andExpect(MockMvcResultMatchers.status().matcher())
+	fun status(dsl: StatusResultMatchersDsl.() -> Unit) {
+		StatusResultMatchersDsl(actions).dsl()
 	}
 
 	/**
 	 * @see MockMvcResultMatchers.header
 	 */
-	fun header(matcher: HeaderResultMatchers.() -> ResultMatcher) {
-		actions.andExpect(MockMvcResultMatchers.header().matcher())
+	fun header(dsl: HeaderResultMatchersDsl.() -> Unit) {
+		HeaderResultMatchersDsl(actions).dsl()
 	}
 
 	/**
 	 * @see MockMvcResultMatchers.content
 	 */
-	fun content(matcher: ContentResultMatchers.() -> ResultMatcher) {
-		actions.andExpect(MockMvcResultMatchers.content().matcher())
+	fun content(dsl: ContentResultMatchersDsl.() -> Unit) {
+		ContentResultMatchersDsl(actions).dsl()
 	}
 
 	/**
 	 * @see MockMvcResultMatchers.jsonPath
 	 */
-	fun <T> jsonPath(expression: String, matcher: Matcher<T>) {
+	fun <T : Any> jsonPath(expression: String, matcher: Matcher<T>) {
 		actions.andExpect(MockMvcResultMatchers.jsonPath(expression, matcher))
 	}
 
 	/**
 	 * @see MockMvcResultMatchers.jsonPath
 	 */
-	fun jsonPath(expression: String, vararg args: Any, block: JsonPathResultMatchers.() -> ResultMatcher) {
-		actions.andExpect(MockMvcResultMatchers.jsonPath(expression, *args).block())
+	fun jsonPath(expression: String, vararg args: Any?, dsl: JsonPathResultMatchersDsl.() -> Unit) {
+		JsonPathResultMatchersDsl(actions, expression, *args).dsl()
 	}
 
 	/**
 	 * @see MockMvcResultMatchers.xpath
 	 */
-	fun xpath(expression: String, vararg args: Any, namespaces: Map<String, String>? = null, xpathInit: XpathResultMatchers.() -> ResultMatcher) {
-		actions.andExpect(MockMvcResultMatchers.xpath(expression, namespaces, args).xpathInit())
+	fun xpath(expression: String, vararg args: Any?, namespaces: Map<String, String>? = null, dsl: XpathResultMatchersDsl.() -> Unit) {
+		XpathResultMatchersDsl(actions, expression, namespaces, *args).dsl()
 	}
 
 	/**
 	 * @see MockMvcResultMatchers.cookie
 	 */
-	fun cookie(cookieInit: CookieResultMatchers.() -> ResultMatcher) {
-		val cookie = MockMvcResultMatchers.cookie().cookieInit()
-		actions.andExpect(cookie)
+	fun cookie(dsl: CookieResultMatchersDsl.() -> Unit) {
+		CookieResultMatchersDsl(actions).dsl()
 	}
 
 	/**
@@ -145,5 +144,13 @@ class MockMvcResultMatchersDsl(private val actions: ResultActions) {
 	 */
 	fun match(matcher: ResultMatcher) {
 		actions.andExpect(matcher)
+	}
+
+	/**
+	 * @since 6.0.4
+	 * @see ResultActions.andExpectAll
+	 */
+	fun matchAll(vararg matchers: ResultMatcher) {
+		actions.andExpectAll(*matchers)
 	}
 }

@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2016 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,7 +18,6 @@ package org.springframework.messaging.handler.invocation;
 
 import java.lang.reflect.Method;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -26,9 +25,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.hamcrest.Matchers;
-import org.junit.Before;
-import org.junit.Test;
+import org.jspecify.annotations.Nullable;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 
 import org.springframework.context.support.StaticApplicationContext;
 import org.springframework.messaging.Message;
@@ -41,7 +40,8 @@ import org.springframework.util.AntPathMatcher;
 import org.springframework.util.Assert;
 import org.springframework.util.PathMatcher;
 
-import static org.junit.Assert.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatIllegalStateException;
 
 /**
  * Test fixture for
@@ -50,7 +50,7 @@ import static org.junit.Assert.*;
  * @author Brian Clozel
  * @author Rossen Stoyanchev
  */
-public class MethodMessageHandlerTests {
+class MethodMessageHandlerTests {
 
 	private static final String DESTINATION_HEADER = "destination";
 
@@ -59,10 +59,10 @@ public class MethodMessageHandlerTests {
 	private TestController testController;
 
 
-	@Before
-	public void setup() {
+	@BeforeEach
+	void setup() {
 
-		List<String> destinationPrefixes = Arrays.asList("/test");
+		List<String> destinationPrefixes = List.of("/test");
 
 		this.messageHandler = new TestMethodMessageHandler();
 		this.messageHandler.setApplicationContext(new StaticApplicationContext());
@@ -73,33 +73,34 @@ public class MethodMessageHandlerTests {
 		this.messageHandler.registerHandler(this.testController);
 	}
 
-	@Test(expected = IllegalStateException.class)
-	public void duplicateMapping() {
-		this.messageHandler.registerHandler(new DuplicateMappingsController());
+	@Test
+	void duplicateMapping() {
+		assertThatIllegalStateException().isThrownBy(() ->
+				this.messageHandler.registerHandler(new DuplicateMappingsController()));
 	}
 
 	@Test
-	public void registeredMappings() {
+	void registeredMappings() {
 
 		Map<String, HandlerMethod> handlerMethods = this.messageHandler.getHandlerMethods();
 
-		assertNotNull(handlerMethods);
-		assertThat(handlerMethods.keySet(), Matchers.hasSize(3));
+		assertThat(handlerMethods).isNotNull();
+		assertThat(handlerMethods).hasSize(3);
 	}
 
 	@Test
-	public void patternMatch() throws Exception {
+	void patternMatch() throws Exception {
 
 		Method method = this.testController.getClass().getMethod("handlerPathMatchWildcard");
 		this.messageHandler.registerHandlerMethod(this.testController, method, "/handlerPathMatch*");
 
 		this.messageHandler.handleMessage(toDestination("/test/handlerPathMatchFoo"));
 
-		assertEquals("pathMatchWildcard", this.testController.method);
+		assertThat(this.testController.method).isEqualTo("pathMatchWildcard");
 	}
 
 	@Test
-	public void bestMatch() throws Exception {
+	void bestMatch() throws Exception {
 
 		Method method = this.testController.getClass().getMethod("bestMatch");
 		this.messageHandler.registerHandlerMethod(this.testController, method, "/bestmatch/{foo}/path");
@@ -109,25 +110,25 @@ public class MethodMessageHandlerTests {
 
 		this.messageHandler.handleMessage(toDestination("/test/bestmatch/bar/path"));
 
-		assertEquals("bestMatch", this.testController.method);
+		assertThat(this.testController.method).isEqualTo("bestMatch");
 	}
 
 	@Test
-	public void argumentResolution() {
+	void argumentResolution() {
 
 		this.messageHandler.handleMessage(toDestination("/test/handlerArgumentResolver"));
 
-		assertEquals("handlerArgumentResolver", this.testController.method);
-		assertNotNull(this.testController.arguments.get("message"));
+		assertThat(this.testController.method).isEqualTo("handlerArgumentResolver");
+		assertThat(this.testController.arguments.get("message")).isNotNull();
 	}
 
 	@Test
-	public void handleException() {
+	void handleException() {
 
 		this.messageHandler.handleMessage(toDestination("/test/handlerThrowsExc"));
 
-		assertEquals("illegalStateException", this.testController.method);
-		assertNotNull(this.testController.arguments.get("exception"));
+		assertThat(this.testController.method).isEqualTo("illegalStateException");
+		assertThat(this.testController.arguments.get("exception")).isNotNull();
 	}
 
 	private Message<?> toDestination(String destination) {
@@ -189,6 +190,7 @@ public class MethodMessageHandlerTests {
 			super.detectHandlerMethods(handler);
 		}
 
+		@Override
 		public void registerHandlerMethod(Object handler, Method method, String mapping) {
 			super.registerHandlerMethod(handler, method, mapping);
 		}
@@ -203,9 +205,7 @@ public class MethodMessageHandlerTests {
 
 		@Override
 		protected List<? extends HandlerMethodReturnValueHandler> initReturnValueHandlers() {
-			List<HandlerMethodReturnValueHandler> handlers = new ArrayList<>();
-			handlers.addAll(getCustomReturnValueHandlers());
-			return handlers;
+			return new ArrayList<>(getCustomReturnValueHandlers());
 		}
 
 		@Override
@@ -237,7 +237,7 @@ public class MethodMessageHandlerTests {
 		}
 
 		@Override
-		protected String getMatchingMapping(String mapping, Message<?> message) {
+		protected @Nullable String getMatchingMapping(String mapping, Message<?> message) {
 			String destination = getLookupDestination(getDestination(message));
 			Assert.notNull(destination, "No destination");
 			return mapping.equals(destination) || this.pathMatcher.match(mapping, destination) ? mapping : null;

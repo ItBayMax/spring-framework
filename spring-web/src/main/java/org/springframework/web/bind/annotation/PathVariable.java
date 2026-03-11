@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -57,10 +57,12 @@ public @interface PathVariable {
 
 	/**
 	 * Whether the path variable is required.
-	 * <p>Defaults to {@code true}, leading to an exception being thrown if the path
-	 * variable is missing in the incoming request. Switch this to {@code false} if
-	 * you prefer a {@code null} or Java 8 {@code java.util.Optional} in this case.
-	 * e.g. on a {@code ModelAttribute} method which serves for different requests.
+	 * <p>Defaults to {@code true}, leading to an exception being thrown if the
+	 * path variable is missing in the incoming request.
+	 * <p>Switch this to {@code false} if you prefer a {@code null} or
+	 * {@code java.util.Optional} if the path variable does not exist &mdash;
+	 * for example, on a {@code ModelAttribute} method which serves for different
+	 * requests.
 	 * @since 4.3.3
 	 */
 	boolean required() default true;

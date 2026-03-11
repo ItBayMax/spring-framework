@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -21,14 +21,15 @@ import java.io.InputStream;
 import java.lang.instrument.ClassFileTransformer;
 import java.lang.instrument.IllegalClassFormatException;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Enumeration;
 import java.util.HashMap;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
+import org.jspecify.annotations.Nullable;
+
 import org.springframework.core.DecoratingClassLoader;
-import org.springframework.lang.Nullable;
 import org.springframework.util.Assert;
 import org.springframework.util.FileCopyUtils;
 import org.springframework.util.StringUtils;
@@ -55,7 +56,7 @@ public class ShadowingClassLoader extends DecoratingClassLoader {
 
 	private final ClassLoader enclosingClassLoader;
 
-	private final List<ClassFileTransformer> classFileTransformers = new LinkedList<>();
+	private final List<ClassFileTransformer> classFileTransformers = new ArrayList<>(1);
 
 	private final Map<String, Class<?>> classCache = new HashMap<>();
 
@@ -191,8 +192,7 @@ public class ShadowingClassLoader extends DecoratingClassLoader {
 	}
 
 	@Override
-	@Nullable
-	public InputStream getResourceAsStream(String name) {
+	public @Nullable InputStream getResourceAsStream(String name) {
 		return this.enclosingClassLoader.getResourceAsStream(name);
 	}
 

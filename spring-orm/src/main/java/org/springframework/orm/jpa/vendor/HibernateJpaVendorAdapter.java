@@ -1,11 +1,11 @@
 /*
- * Copyright 2002-2018 the original author or authors.
+ * Copyright 2002-present the original author or authors.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *      http://www.apache.org/licenses/LICENSE-2.0
+ *      https://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -18,37 +18,45 @@ package org.springframework.orm.jpa.vendor;
 
 import java.util.HashMap;
 import java.util.Map;
-import javax.persistence.EntityManager;
-import javax.persistence.EntityManagerFactory;
-import javax.persistence.spi.PersistenceProvider;
-import javax.persistence.spi.PersistenceUnitInfo;
-import javax.persistence.spi.PersistenceUnitTransactionType;
 
+import jakarta.persistence.EntityManager;
+import jakarta.persistence.EntityManagerFactory;
+import jakarta.persistence.spi.PersistenceProvider;
+import jakarta.persistence.spi.PersistenceUnitInfo;
+import jakarta.transaction.TransactionManager;
+import org.hibernate.Session;
+import org.hibernate.SessionFactory;
+import org.hibernate.StatelessSession;
 import org.hibernate.cfg.AvailableSettings;
 import org.hibernate.dialect.DB2Dialect;
-import org.hibernate.dialect.DerbyTenSevenDialect;
 import org.hibernate.dialect.H2Dialect;
-import org.hibernate.dialect.HANAColumnStoreDialect;
+import org.hibernate.dialect.HANADialect;
 import org.hibernate.dialect.HSQLDialect;
-import org.hibernate.dialect.InformixDialect;
-import org.hibernate.dialect.MySQL5Dialect;
-import org.hibernate.dialect.Oracle12cDialect;
-import org.hibernate.dialect.PostgreSQL95Dialect;
-import org.hibernate.dialect.SQLServer2012Dialect;
+import org.hibernate.dialect.MySQLDialect;
+import org.hibernate.dialect.OracleDialect;
+import org.hibernate.dialect.PostgreSQLDialect;
+import org.hibernate.dialect.SQLServerDialect;
 import org.hibernate.dialect.SybaseDialect;
+import org.hibernate.resource.jdbc.spi.PhysicalConnectionHandlingMode;
+import org.jspecify.annotations.Nullable;
 
-import org.springframework.lang.Nullable;
+import org.springframework.beans.factory.BeanFactory;
+import org.springframework.beans.factory.BeanFactoryAware;
+import org.springframework.beans.factory.config.ConfigurableListableBeanFactory;
+import org.springframework.orm.jpa.hibernate.ConfigurableJtaPlatform;
+import org.springframework.orm.jpa.hibernate.SpringBeanContainer;
+import org.springframework.orm.jpa.persistenceunit.SmartPersistenceUnitInfo;
+import org.springframework.transaction.jta.JtaTransactionManager;
 
 /**
- * {@link org.springframework.orm.jpa.JpaVendorAdapter} implementation for Hibernate
- * EntityManager. Developed and tested against Hibernate 5.0, 5.1, 5.2 and 5.3;
- * backwards-compatible with Hibernate 4.3 at runtime on a best-effort basis.
+ * {@link org.springframework.orm.jpa.JpaVendorAdapter} implementation for Hibernate.
+ * Compatible with Hibernate ORM 7.x and 8.x.
  *
- * <p>Exposes Hibernate's persistence provider and EntityManager extension interface,
- * and adapts {@link AbstractJpaVendorAdapter}'s common configuration settings.
- * Also supports the detection of annotated packages (through
+ * <p>Exposes Hibernate's persistence provider and Hibernate's Session as extended
+ * EntityManager interface, and adapts {@link AbstractJpaVendorAdapter}'s common
+ * configuration settings. Also supports the detection of annotated packages (through
  * {@link org.springframework.orm.jpa.persistenceunit.SmartPersistenceUnitInfo#getManagedPackages()}),
- * e.g. containing Hibernate {@link org.hibernate.annotations.FilterDef} annotations,
+ * for example, containing Hibernate {@link org.hibernate.annotations.FilterDef} annotations,
  * along with Spring-driven entity scanning which requires no {@code persistence.xml}
  * ({@link org.springframework.orm.jpa.LocalContainerEntityManagerFactoryBean#setPackagesToScan}).
  *
@@ -65,22 +73,19 @@ import org.springframework.lang.Nullable;
  * @since 2.0
  * @see HibernateJpaDialect
  */
-public class HibernateJpaVendorAdapter extends AbstractJpaVendorAdapter {
+public class HibernateJpaVendorAdapter extends AbstractJpaVendorAdapter implements BeanFactoryAware {
 
 	private final HibernateJpaDialect jpaDialect = new HibernateJpaDialect();
 
 	private final PersistenceProvider persistenceProvider;
 
-	private final Class<? extends EntityManagerFactory> entityManagerFactoryInterface;
+	private @Nullable Object jtaTransactionManager;
 
-	private final Class<? extends EntityManager> entityManagerInterface;
+	private @Nullable BeanFactory beanFactory;
 
 
-	@SuppressWarnings("deprecation")
 	public HibernateJpaVendorAdapter() {
 		this.persistenceProvider = new SpringHibernateJpaPersistenceProvider();
-		this.entityManagerFactoryInterface = org.hibernate.jpa.HibernateEntityManagerFactory.class;
-		this.entityManagerInterface = org.hibernate.jpa.HibernateEntityManager.class;
 	}
 
 
@@ -91,15 +96,15 @@ public class HibernateJpaVendorAdapter extends AbstractJpaVendorAdapter {
 	 * JDBC Connection.
 	 * <p>See {@link HibernateJpaDialect#setPrepareConnection(boolean)} for details.
 	 * This is just a convenience flag passed through to {@code HibernateJpaDialect}.
-	 * <p>On Hibernate 5.1/5.2, this flag remains {@code true} by default like against
+	 * <p>On Hibernate 5.1+, this flag remains {@code true} by default like against
 	 * previous Hibernate versions. The vendor adapter manually enforces Hibernate's
 	 * new connection handling mode {@code DELAYED_ACQUISITION_AND_HOLD} in that case
 	 * unless a user-specified connection handling mode property indicates otherwise;
 	 * switch this flag to {@code false} to avoid that interference.
-	 * <p><b>NOTE: For a persistence unit with transaction type JTA e.g. on WebLogic,
+	 * <p><b>NOTE: For a persistence unit with transaction type JTA, for example, on WebLogic,
 	 * the connection release mode will never be altered from its provider default,
 	 * i.e. not be forced to {@code DELAYED_ACQUISITION_AND_HOLD} by this flag.</b>
-	 * Alternatively, set Hibernate 5.2's "hibernate.connection.handling_mode"
+	 * Alternatively, set Hibernate's "hibernate.connection.handling_mode"
 	 * property to "DELAYED_ACQUISITION_AND_RELEASE_AFTER_TRANSACTION" or even
 	 * "DELAYED_ACQUISITION_AND_RELEASE_AFTER_STATEMENT" in such a scenario.
 	 * @since 4.3.1
@@ -109,6 +114,29 @@ public class HibernateJpaVendorAdapter extends AbstractJpaVendorAdapter {
 	 */
 	public void setPrepareConnection(boolean prepareConnection) {
 		this.jpaDialect.setPrepareConnection(prepareConnection);
+	}
+
+	/**
+	 * Set the Spring {@link org.springframework.transaction.jta.JtaTransactionManager}
+	 * or the JTA {@link jakarta.transaction.TransactionManager} to be used with Hibernate,
+	 * if any. Implicitly sets up {@code JtaPlatform}.
+	 * @since 7.0.4
+	 * @see AvailableSettings#JTA_PLATFORM
+	 */
+	public void setJtaTransactionManager(Object jtaTransactionManager) {
+		this.jtaTransactionManager = jtaTransactionManager;
+	}
+
+	/**
+	 * Set the Spring {@link ConfigurableListableBeanFactory} to use for a default
+	 * Hibernate setup with {@link SpringBeanContainer}. This enables autowiring of
+	 * Hibernate attribute converters and entity listeners.
+	 * @since 7.0.4
+	 * @see AvailableSettings#BEAN_CONTAINER
+	 */
+	@Override
+	public void setBeanFactory(BeanFactory beanFactory) {
+		this.beanFactory = beanFactory;
 	}
 
 
@@ -125,7 +153,7 @@ public class HibernateJpaVendorAdapter extends AbstractJpaVendorAdapter {
 	@Override
 	public Map<String, Object> getJpaPropertyMap(PersistenceUnitInfo pui) {
 		return buildJpaPropertyMap(this.jpaDialect.prepareConnection &&
-				pui.getTransactionType() != PersistenceUnitTransactionType.JTA);
+				(pui instanceof SmartPersistenceUnitInfo spui && !spui.isConfiguredForJta()));
 	}
 
 	@Override
@@ -144,6 +172,12 @@ public class HibernateJpaVendorAdapter extends AbstractJpaVendorAdapter {
 			if (databaseDialectClass != null) {
 				jpaProperties.put(AvailableSettings.DIALECT, databaseDialectClass.getName());
 			}
+			else {
+				String databaseDialectName = determineDatabaseDialectName(getDatabase());
+				if (databaseDialectName != null) {
+					jpaProperties.put(AvailableSettings.DIALECT, databaseDialectName);
+				}
+			}
 		}
 
 		if (isGenerateDdl()) {
@@ -154,48 +188,75 @@ public class HibernateJpaVendorAdapter extends AbstractJpaVendorAdapter {
 		}
 
 		if (connectionReleaseOnClose) {
-			// Hibernate 5.1/5.2: manually enforce connection release mode ON_CLOSE (the former default)
-			try {
-				// Try Hibernate 5.2
-				AvailableSettings.class.getField("CONNECTION_HANDLING");
-				jpaProperties.put("hibernate.connection.handling_mode", "DELAYED_ACQUISITION_AND_HOLD");
+			jpaProperties.put(AvailableSettings.CONNECTION_HANDLING,
+					PhysicalConnectionHandlingMode.DELAYED_ACQUISITION_AND_HOLD);
+		}
+
+		// Derive Hibernate JtaPlatform from Spring (Jta)TransactionManager setup.
+		if (this.jtaTransactionManager != null) {
+			if (this.jtaTransactionManager instanceof JtaTransactionManager springJtaTm) {
+				if (springJtaTm.getTransactionManager() == null) {
+					throw new IllegalArgumentException(
+							"Can only apply JtaTransactionManager which has a TransactionManager reference set");
+				}
+				jpaProperties.put(AvailableSettings.JTA_PLATFORM, new ConfigurableJtaPlatform(
+						springJtaTm.getTransactionManager(), springJtaTm.getUserTransaction(),
+						springJtaTm.getTransactionSynchronizationRegistry()));
 			}
-			catch (NoSuchFieldException ex) {
-				// Try Hibernate 5.1
-				try {
-					AvailableSettings.class.getField("ACQUIRE_CONNECTIONS");
-					jpaProperties.put("hibernate.connection.release_mode", "ON_CLOSE");
-				}
-				catch (NoSuchFieldException ex2) {
-					// on Hibernate 5.0.x or lower - no need to change the default there
-				}
+			else if (this.jtaTransactionManager instanceof TransactionManager jtaTm) {
+				jpaProperties.put(AvailableSettings.JTA_PLATFORM, new ConfigurableJtaPlatform(jtaTm, null, null));
+			}
+			else {
+				throw new IllegalArgumentException(
+						"Unknown transaction manager type: " + this.jtaTransactionManager.getClass().getName());
 			}
 		}
+
+		// This enables autowiring of Hibernate attribute converters and entity listeners.
+		if (this.beanFactory instanceof ConfigurableListableBeanFactory clbf) {
+			jpaProperties.put(AvailableSettings.BEAN_CONTAINER, new SpringBeanContainer(clbf));
+		}
+		// For SpringBeanContainer to actually be called at runtime.
+		jpaProperties.put("hibernate.cdi.extensions", "true");
 
 		return jpaProperties;
 	}
 
 	/**
 	 * Determine the Hibernate database dialect class for the given target database.
+	 * <p>The default implementation covers the common built-in dialects.
 	 * @param database the target database
 	 * @return the Hibernate database dialect class, or {@code null} if none found
+	 * @see #determineDatabaseDialectName
 	 */
-	@Nullable
-	protected Class<?> determineDatabaseDialectClass(Database database) {
-		switch (database) {
-			case DB2: return DB2Dialect.class;
-			case DERBY: return DerbyTenSevenDialect.class;
-			case H2: return H2Dialect.class;
-			case HANA: return HANAColumnStoreDialect.class;
-			case HSQL: return HSQLDialect.class;
-			case INFORMIX: return InformixDialect.class;
-			case MYSQL: return MySQL5Dialect.class;
-			case ORACLE: return Oracle12cDialect.class;
-			case POSTGRESQL: return PostgreSQL95Dialect.class;
-			case SQL_SERVER: return SQLServer2012Dialect.class;
-			case SYBASE: return SybaseDialect.class;
-			default: return null;
-		}
+	protected @Nullable Class<?> determineDatabaseDialectClass(Database database) {
+		return switch (database) {
+			case DB2 -> DB2Dialect.class;
+			case H2 -> H2Dialect.class;
+			case HANA -> HANADialect.class;
+			case HSQL -> HSQLDialect.class;
+			case MYSQL -> MySQLDialect.class;
+			case ORACLE -> OracleDialect.class;
+			case POSTGRESQL -> PostgreSQLDialect.class;
+			case SQL_SERVER -> SQLServerDialect.class;
+			case SYBASE -> SybaseDialect.class;
+			default -> null;
+		};
+	}
+
+	/**
+	 * Determine the Hibernate database dialect class name for the given target database.
+	 * <p>The default implementation covers the common community dialect for Derby.
+	 * @param database the target database
+	 * @return the Hibernate database dialect class name, or {@code null} if none found
+	 * @since 7.0
+	 * @see #determineDatabaseDialectClass
+	 */
+	protected @Nullable String determineDatabaseDialectName(Database database) {
+		return switch (database) {
+			case DERBY -> "org.hibernate.community.dialect.DerbyDialect";
+			default -> null;
+		};
 	}
 
 	@Override
@@ -205,12 +266,17 @@ public class HibernateJpaVendorAdapter extends AbstractJpaVendorAdapter {
 
 	@Override
 	public Class<? extends EntityManagerFactory> getEntityManagerFactoryInterface() {
-		return this.entityManagerFactoryInterface;
+		return SessionFactory.class;
 	}
 
 	@Override
 	public Class<? extends EntityManager> getEntityManagerInterface() {
-		return this.entityManagerInterface;
+		return Session.class;
+	}
+
+	@Override
+	public Class<?> getEntityAgentInterface() {
+		return StatelessSession.class;
 	}
 
 }
